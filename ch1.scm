@@ -127,7 +127,7 @@
 
 (define (ex1-15-p x)
   (set! ex1-15-p-calls (+ ex1-15-p-calls 1))
-  (- (* 3 x) (* 4 (ex1-15-cube x))))Auto
+  (- (* 3 x) (* 4 (ex1-15-cube x))))
 
 (define (ex1-15-sine angle)
   (if (not (> (abs angle) 0.1))
@@ -171,3 +171,64 @@
 ;; Thus at each, step, we only need to account for the same amount of space. So it grows O(1).
 
 
+;; Successive Squares - Faster exponentiation
+;; How does the below grow in space/time?
+;;	Time  - It will take roughly log2(n) steps for each n. So it is O(log n)
+;;	Space - For n steps, we will need to keep track of log2 n calls to fast-expt, so it is O(log n).
+;; (define (even? n)
+;;   (= (remainder n 2) 0))
+
+(define (fast-expt b n)
+  (cond ((= n 0) 1)
+	((even? n) (square (fast-expt b (/ n 2))))
+	(else (* b (fast-expt b (- n 1))))))
+
+;; Exercise 1.16 - Iterative Exponentiation - State Variables & Invariants
+(define (ex1-16 b n)
+  (fast-expt-iter b n 1))
+
+;; Here the state variable a when multiplied with b^n becomes an invariant.
+;;	For example with n = 3
+;;	  (fast-expt-iter 2 3 1) 1*2^3 = 8
+;;	  (fast-expt-iter 2 2 2) 2*2^2 = 8
+;;	  (fast-expt-iter 4 1 2) 2*4^1 = 8
+;;	  (fast-expt-iter 4 0 8) 8*4^0 = 8
+;;	So using the state transformation (either multiplying by a by b, or decrementing n by 1
+;;	allows the quantity ab^n to be invariant.
+(define (fast-expt-iter b n a)
+  (cond ((= n 0) a)
+	((even? n) (fast-expt-iter (square b) (/ n 2) a))
+	(else (fast-expt-iter b (- n 1) (* a b)))))
+
+
+;; Exercise 1.17 - Multiplication defined as addition
+;; For each increase in n, we will have to do a linear amount of steps, O(n)
+(define ex1-17-n-count 0)
+(define ex1-17-log-count 0)
+(define (ex1-17-count a b)
+  (set! ex1-17-n-count 0)
+  (set! ex1-17-log-count 0)
+  (print "result for linear algorithm : " (ex1-17-* a b))
+  (print "calls for linear algorithm : " ex1-17-n-count)
+  (print "result for log algorithm : " (ex1-17-*-log a b))
+  (print "calls for log algorithm : " ex1-17-log-count))
+
+(define (ex1-17-* a b)
+  (set! ex1-17-n-count (+ ex1-17-n-count 1))
+  (if (= b 0)
+      0
+      (+ a (ex1-17-* a (- b 1)))))
+
+(define (ex1-17-*-log a b)
+  (set! ex1-17-log-count (+ ex1-17-log-count 1))
+  (cond ((= b 0) 0)
+	((even? b) (ex1-17-double (ex1-17-*-log a (ex1-17-halve b))))
+	(else
+	 (+ a (ex1-17-*-log a (- b 1))))))
+
+(define (ex1-17-double a)
+  (+ a a))
+
+(define (ex1-17-halve a)
+  (if (even? a)
+      (/ a 2)))
