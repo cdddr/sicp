@@ -232,3 +232,22 @@
 (define (ex1-17-halve a)
   (if (even? a)
       (/ a 2)))
+
+;; Exercise 1.18 - Iterative Multiplication in terms of addition (Russian Peasant Method)
+;;   Similarl to Ex 1.16, A state variable will be introduced and the three arguments will
+;;   form an invariant.
+;;   State variable : s, Invariant : ab + s
+;;	Example a=1, b = 4, s=0:
+;;	  (ex1-18-*-iter 1 4 0) 1*4+0=4
+;;	  (ex1-18-*-iter 2 2 0) 2*2+0=4
+;;	  (ex1-18-*-iter 4 1 0) 4*1+0=4
+;;	  (ex1-18-*-iter 4 0 4) 4*0+4=4
+(define (ex1-18-* a b)
+  (ex1-18-*-iter a b 0))
+
+(define (ex1-18-*-iter a b s)
+  (cond ((= b 0) s)
+	((even? b) (ex1-18-*-iter (ex1-17-double a) (ex1-17-halve b) s))
+	(else
+	 (ex1-18-*-iter a (- b 1) (+ s a)))))
+;; Exercise 1.19 - Fibonacci in logarithm
