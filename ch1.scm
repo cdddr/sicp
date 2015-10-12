@@ -1,3 +1,16 @@
+(define (fib n)
+  (cond ((= n 0) 0)
+	((= n 1) 1)
+	(else (+ (fib (- n 1))
+		 (fib (- n 2))))))
+(define (fib-linear n)
+  (fib-linear-iter 1 0 n))
+
+(define (fib-linear-iter a b count)
+  (if (= count 0)
+      b
+      (fib-linear-iter (+ a b) a (- count 1))))
+
 (define (square x)
   (* x x))
 (define (sum-squares x y)
@@ -230,7 +243,7 @@
   (+ a a))
 
 (define (ex1-17-halve a)
-  (if (even? a)
+  (when (even? a)
       (/ a 2)))
 
 ;; Exercise 1.18 - Iterative Multiplication in terms of addition (Russian Peasant Method)
@@ -250,4 +263,269 @@
 	((even? b) (ex1-18-*-iter (ex1-17-double a) (ex1-17-halve b) s))
 	(else
 	 (ex1-18-*-iter a (- b 1) (+ s a)))))
+
 ;; Exercise 1.19 - Fibonacci in logarithm
+;;  Details in Notebook
+(define (ex1-19-fib n)
+  (fib-iter 1 0 0 1 n))
+
+(define (fib-iter a b p q count)
+  (cond ((= count 0) b)
+	((even? count)
+	 (fib-iter a
+		   b
+		   (+ (square q) (square p))
+		   (+ (square q) (* 2 q p))
+		   (/ count 2)))
+	(else (fib-iter (+ (* b q) (* a q) (* a p))
+			(+ (* b p) (* a q))
+			p
+			q
+			(- count 1)))))
+
+;; Section 1.2.5 - Greatest Common Divisors
+;; Euclid's Algorithm
+;; This algorithm is already iterative, and results in O(log n)
+;; (define (gcd a b)
+;;   (if (= b 0)
+;;       a
+;;       (gcd b (remainder a b))))
+
+;; Exercise 1.20 - How Many remainder operations are performed
+;;  Normal Order Evaluation : Fully Expand then Reduce
+;;  (gcd 206 40)
+;;    (if (= 40 0) .. (gcd 40 (remainder 206 40)))
+;;	(if (= (remainder 206 40) 0) -> (if (= 6 0) ... (gcd (remainder 206 40) (remainder 40 (remainder 206 40))))
+;;        (if (= (remainder 40 (remainder 206 40)) 0)) -> (if (= 4 0)
+;;          (gcd (remainder 40 (remainder 206 40)) (remainder (remainder 206 40) (remainder 40 (remainder 206 40))))
+;;           (if (= (remainder (remainder 206 40) (remainder 40 (remainder 206 40)))))
+;;           (if (= 2 0) ... )
+;;            (gcd (remainder (remainder 206 40) (remainder 40 (remainder 206 40)))) (remainder (remainder 40 (remainder 206 40)) (remainder (remainder 206 40) (remainder 40 (remainder 206 40)))))
+;;             (if (= (remainder (remainder 40 (remainder 206 40)) (remainder (remainder 206 40) (remainder 40 (remainder 206 40)))))))
+;;	       (if (= 0 0) ...)
+;;		(remainder (remainder 206 40) (remainder 40 (remainder 206 40))))
+;;   In the above, evals only happen in the if statements, until it is fully expanded at the end, so 14+4=18
+
+;;  Applicative Order Evaluation : Evaluate the arguments of the function, then apply
+;;  (gcd 206 40)
+;;  (gcd 40 (remainder 206 40)) -> (gcd 40 6)
+;;  (gcd 6 (remainder 40 6))    -> (gcd 6 4)
+;;  (gcd 4 (remainder 6 4))     -> (gcd 4 2)
+;;  (gcd 2 (remainder 4 2))     -> (gcd 2 0)
+;;  2
+;;  In the above, remainder is evaluated 4 times.
+
+;; Section 1.2.6 - Testing For Primality
+(define (smallest-divisor n)
+  (find-divisor n 2))
+
+(define (find-divisor n test-divisor)
+  (cond ((> (square test-divisor) n) n)
+	((divides? test-divisor n) test-divisor)
+	(else (find-divisor n (+ test-divisor 1)))))
+
+(define (divides? a b)
+  (= (remainder b a) 0))
+
+(define (prime? n)
+  (= n (smallest-divisor n)))
+
+;; Fermat's Little Theorem - Probalistic Algorithm (O(log n))
+(define (expmod base exp m)
+  (cond ((= exp 0) 1)
+	((even? exp)
+	 (remainder (square (expmod base (/ exp 2) m))
+		    m))
+	(else
+	 (remainder (* base (expmod base (- exp 1) m))
+		    m))))
+
+(define (fermat-test n)
+  (define (try-it a)
+    (= (expmod a n n) a))
+  (try-it (+ 1 (random-natural (- n 1)))))
+
+(define (fast-prime? n times)
+  (cond ((= times 0) #t)
+	((fermat-test n) (fast-prime? n (- times 1)))
+	(else #f)))
+
+;; Exercise 1-21
+;; 199, 1999, 7
+
+;; Exercise 1-22
+(define (timed-prime-test n)
+  (start-prime-test n (current-inexact-milliseconds)))
+
+(define (start-prime-test n start-time)
+  (if (prime? n)
+      (report-prime n (- (current-inexact-milliseconds) start-time))
+      #f))
+
+(define (report-prime n elapsed-time)
+  (display n)
+  (display " *** ")
+  (display elapsed-time)
+  (newline)
+  #t)
+
+;; search consecutive odd numbers for n prime numbers in a range of numbers
+;; if first is even, add 1; if last is even subtract 1
+(define (search-for-primes first last limit)
+  (define (search-iter first last limit)
+    (when (and (<= first last) (not (= limit 0))) 
+	(search-iter (+ first 2) last (if (timed-prime-test first) (- limit 1) limit))))
+  (search-iter (if (even? first) (+ first 1) first)
+	       (if (even? last) (- last 1) last)
+	       limit))
+
+;; The exercise calls for finding times for 1e3, 1e6, 1e9, but my computer was too fast to differentiate between those.
+;; So, I started with 1e9
+;;   #;35> (search-for-primes 1000000000 9999999999 3)
+;;	100000007 *** 9.0
+;;	100000037 *** 9.0					9.33333333
+;;	100000039 *** 10.0
+;;   #;36> (search-for-primes 10000000000 99999999999 3)		8.49999999999
+;;	10000000019 *** 78.0
+;;	10000000033 *** 84.0					79.3333333		
+;;	10000000061 *** 76.0
+;;  #;37> (search-for-primes 100000000000 999999999999 3)		3.28151260504
+;;	100000000003 *** 270.0
+;;	100000000019 *** 255.0					260.333333
+;;	100000000057 *** 256.0
+;;  #;38> (search-for-primes 1000000000000 9999999999999 3)		3.06786171575
+;;	1000000000039 *** 798.0
+;;	1000000000061 *** 800.0					798.666667
+;;	1000000000063 *** 798.0
+;;  sqrt(10) = 3.16227766017. with the exception of 1e9->1e10, it does indeed grow O(sqrt(n))
+
+;; Exercise 1.23
+(define (next n)
+  (cond ((= n 2) 3)
+	(else (+ n 2))))
+
+(define (smallest-divisor n)
+  (find-divisor n 2))
+
+(define (find-divisor n test-divisor)
+  (cond ((> (square test-divisor) n) n)
+	((divides? test-divisor n) test-divisor)
+	(else (find-divisor n (next test-divisor)))))
+;; Results :
+;; #;44> (search-for-primes 1000000000 9999999999 3)
+;; 1000000007 *** 18.0
+;; 1000000009 *** 15.0
+;; 1000000021 *** 15.0
+;; #;45> (search-for-primes 1000000000 9999999999 3)
+;; 1000000007 *** 22.0
+;; 1000000009 *** 15.0
+;; 1000000021 *** 15.0
+;; #;46> (search-for-primes 10000000000 99999999999 3)
+;; 10000000019 *** 45.0
+;; 10000000033 *** 51.0						50.66666 -> ~1.5
+;; 10000000061 *** 56.0
+;; #;47> (search-for-primes 100000000000 999999999999 3)
+;; 100000000003 *** 169.0
+;; 100000000019 *** 155.0
+;; 100000000057 *** 159.0
+;; #;48> (search-for-primes 1000000000000 9999999999999 3)
+;; 1000000000039 *** 492.0
+;; 1000000000061 *** 487.0
+;; 1000000000063 *** 490.0
+;; Rough estimates are they are about half, strangely at the lower end it actually increases. Closer look shows they use 1.5 less time.
+;; Halved the number of tests, however we did an if test.
+
+;; Exercise 1.24 - Compare fast-prime? to prime?
+(define (start-fast-prime-test n start-time)
+  (if (fast-prime? n 100)
+      (report-fast-prime n (- (current-inexact-milliseconds) start-time))
+      #f))
+;; All of these were so fast, It looks like I was actually getting random to hang because it was exceeding its limits
+;; Using racket scheme I was able to use random-natural to overcome this. Results:
+(define (timed-prime-test n)
+  (start-prime-test n (current-inexact-milliseconds))
+  (start-fast-prime-test n (current-inexact-milliseconds)))
+
+(define (report-prime n elapsed-time)
+  (display n)
+  (display " *** ")
+  (display elapsed-time)
+  (display " , ")
+  #t)
+
+(define (report-fast-prime n elapsed-time)
+  (display elapsed-time)
+  (newline)
+  #t)
+
+(define (search-for-primes first last limit)
+  (define (search-iter first last limit)
+    (when (and (<= first last) (not (= limit 0))) 
+	(search-iter (+ first 2) last (if (timed-prime-test first) (- limit 1) limit))))
+  (search-iter (if (even? first) (+ first 1) first)
+	       (if (even? last) (- last 1) last)
+	       limit))
+
+;; Had to use really big values to get results consistent enough to draw conclusions from
+;; racket@> (search-for-primes 1000000000000 9999999999999 3)
+;; 1000000000039 *** 37.510986328125 , 3.452880859375
+;; 1000000000061 *** 32.047119140625 , 3.551025390625			ratio of 9.412
+;; 1000000000063 *** 32.234130859375 , 3.737060546875
+;; racket@> (search-for-primes 10000000000000 99999999999999 3)			2.42
+;; 10000000000037 *** 108.427001953125 , 3.706787109375
+;; 10000000000051 *** 103.210205078125 , 6.154052734375			ratio of 22.86
+;; 10000000000099 *** 100.80908203125 , 3.75
+;; racket@> (search-for-primes 100000000000000 999999999999999 3)		3.35
+;; 100000000000031 *** 327.134765625 , 4.183837890625
+;; 100000000000067 *** 316.9208984375 , 4.22802734375			ratio of 76.65
+;; 100000000000097 *** 316.8681640625 , 4.111083984375
+;; racket@> (search-for-primes 1000000000000000 9999999999999999 3)		2.89
+;; 1000000000000037 *** 1005.551025390625 , 4.432861328125
+;; 1000000000000091 *** 999.468017578125 , 4.557861328125			ratio of 221.95
+;; 1000000000000159 *** 999.35498046875 , 4.550048828125
+;; racket@> (search-for-primes 10000000000000000 999999999999999990 3)		2.58
+;; 10000000000000061 *** 3153.963134765625 , 4.804931640625
+;; 10000000000000069 *** 3149.189208984375 , 7.012939453125		ratio of 573.74
+;; 10000000000000079 *** 3182.421875 , 4.72412109375
+
+;; roughly a constant increase in ratio per multiple of 10, so it does bear out O (logn) growth.
+
+
+;; Exercise 1.25 - expmod
+;; (define (expmod base exp m)
+;;   (cond ((= exp 0) 1)
+;; 	((even? exp)
+;; 	 (remainder (square (expmod base (/ exp 2) m))
+;; 		    m))
+;; 	(else
+;; 	 (remainder (* base (expmod base (- exp 1) m))
+;; 		    m))))
+
+(define (expmod base exp m)
+  (remainder (fast-expt base exp) m))
+
+(define (fast-expt b n)
+  (fast-expt-iter b n 1))
+
+;; Here the state variable a when multiplied with b^n becomes an invariant.
+;;	For example with n = 3
+;;	  (fast-expt-iter 2 3 1) 1*2^3 = 8
+;;	  (fast-expt-iter 2 2 2) 2*2^2 = 8
+;;	  (fast-expt-iter 4 1 2) 2*4^1 = 8
+;;	  (fast-expt-iter 4 0 8) 8*4^0 = 8
+;;	So using the state transformation (either multiplying by a by b, or decrementing n by 1
+;;	allows the quantity ab^n to be invariant.
+(define (fast-expt-iter b n a)
+  (cond ((= n 0) a)
+	((even? n) (fast-expt-iter (square b) (/ n 2) a))
+	(else (fast-expt-iter b (- n 1) (* a b)))))
+
+;; This actually runs orders of magnitude slower because the results get very large in a hurry. The expmod way never
+;; use a number larger than m, based on the footnote in the chapter.
+
+;; Exercise 1.26 - Explicit Multiplication vs Square.
+;; Instead of a linear recursion, the rewritten version using an explicit multiplication generates a tree recursion.
+;; The tree recursion grows with the depth of the tree O(n).
+
+;; Exercise 1.27 - Testing Carmichael Numbers
+
