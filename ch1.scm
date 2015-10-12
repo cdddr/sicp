@@ -501,11 +501,11 @@
 ;; 	 (remainder (* base (expmod base (- exp 1) m))
 ;; 		    m))))
 
-(define (expmod base exp m)
-  (remainder (fast-expt base exp) m))
+;; (define (expmod base exp m)
+;;   (remainder (fast-expt base exp) m))
 
-(define (fast-expt b n)
-  (fast-expt-iter b n 1))
+;; (define (fast-expt b n)
+;;   (fast-expt-iter b n 1))
 
 ;; Here the state variable a when multiplied with b^n becomes an invariant.
 ;;	For example with n = 3
@@ -515,10 +515,10 @@
 ;;	  (fast-expt-iter 4 0 8) 8*4^0 = 8
 ;;	So using the state transformation (either multiplying by a by b, or decrementing n by 1
 ;;	allows the quantity ab^n to be invariant.
-(define (fast-expt-iter b n a)
-  (cond ((= n 0) a)
-	((even? n) (fast-expt-iter (square b) (/ n 2) a))
-	(else (fast-expt-iter b (- n 1) (* a b)))))
+;; (define (fast-expt-iter b n a)
+;;   (cond ((= n 0) a)
+;; 	((even? n) (fast-expt-iter (square b) (/ n 2) a))
+;; 	(else (fast-expt-iter b (- n 1) (* a b)))))
 
 ;; This actually runs orders of magnitude slower because the results get very large in a hurry. The expmod way never
 ;; use a number larger than m, based on the footnote in the chapter.
@@ -528,4 +528,93 @@
 ;; The tree recursion grows with the depth of the tree O(n).
 
 ;; Exercise 1.27 - Testing Carmichael Numbers
+;; (define (fermat-test n a)
+;;   (= (expmod a n n) a))
 
+;; (define (test-carmichael-number n)
+;;   (define (tcn-iter a n fooled?)
+;;     (cond ((= a n) #t)
+;; 	  ((not fooled?) fooled?)
+;; 	  (else
+;; 	   (tcn-iter (+ a 1) n (fermat-test n a)))))
+;;   (tcn-iter 0 n #t))
+
+;; racket@> (test-carmichael-number 2821)
+;; #t
+;; racket@> (test-carmichael-number 561)
+;; #t
+;; racket@> (test-carmichael-number 619)
+;; #t
+;; racket@> (test-carmichael-number 620)
+;; #f
+;; racket@> (test-carmichael-number 557)
+;; #t
+;; racket@> (test-carmichael-number 561)
+;; #t
+;; racket@> (test-carmichael-number 1105)
+;; #t
+;; racket@> (test-carmichael-number 1729)
+;; #t
+;; racket@> (test-carmichael-number 2465)
+;; #t
+;; racket@> (test-carmichael-number 2821)
+;; #t
+;; racket@> (test-carmichael-number 6601)
+;; #t
+
+;; Exercise 1.28 - Miller Rabin Primality Test
+(define (non-trivial-sqrt? n m)
+  (cond ((= n 1) #f)
+	((= n (- m 1)) #f)
+	(else (= (remainder (square n) m) 1))))
+
+(define (check-non-trivial-sqrt? n m)
+  (if (non-trivial-sqrt? n m)
+      0
+      (remainder (square n) m)))
+
+(define (expmod-rabin base exp m)
+  (cond ((= exp 0) 1)
+	((even? exp)
+	 (check-non-trivial-sqrt? (expmod-rabin base (/ exp 2) m) m))
+	(else
+	 (remainder (* base (expmod-rabin base (- exp 1) m))
+		    m))))
+
+(define (miller-rabin n)
+  (miller-rabin-test (- n 1) n))
+
+(define (miller-rabin-test a n)
+  (cond ((= a 0) #t)
+	((= (expmod-rabin a (- n 1) n) 1) (miller-rabin-test (- a 1) n))
+	(else #f)))
+
+;; racket@> (search-for-primes 500 1000 10)
+;; 503 *** 0.002197265625 , 0.243896484375
+;; 509 *** 0.001953125 , 0.236083984375
+;; 521 *** 0.0009765625 , 0.219970703125
+;; 523 *** 0.0009765625 , 0.22900390625
+;; 541 *** 0.0009765625 , 0.238037109375
+;; 547 *** 0.001953125 , 0.22705078125
+;; 557 *** 0.001953125 , 0.23388671875
+;; 0.230224609375
+;; 563 *** 0.002197265625 , 0.29296875
+;; 569 *** 0.0009765625 , 0.238037109375
+;; racket@> (miller-rabin 503)
+;; #t
+;; racket@> (miller-rabin 509)
+;; #t
+;; racket@> (miller-rabin 521)
+;; #t
+;; racket@> (miller-rabin 523)
+;; #t
+;; racket@> (miller-rabin 541)
+;; #t
+;; racket@> (miller-rabin 547)
+;; #t
+;; racket@> (miller-rabin 557)
+;; #t
+;; racket@> (miller-rabin 561)
+;; #f
+;; racket@> (miller-rabin 563)
+;; #t
