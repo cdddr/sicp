@@ -284,12 +284,12 @@
 			(- count 1)))))
 
 ;; Section 1.2.5 - Greatest Common Divisors
-;; Euclid's Algorithm
-;; This algorithm is already iterative, and results in O(log n)
-;; (define (gcd a b)
-;;   (if (= b 0)
-;;       a
-;;       (gcd b (remainder a b))))
+;;Euclid's Algorithm
+;;This algorithm is already iterative, and results in O(log n)
+(define (gcd a b)
+  (if (= b 0)
+      a
+      (gcd b (remainder a b))))
 
 ;; Exercise 1.20 - How Many remainder operations are performed
 ;;  Normal Order Evaluation : Fully Expand then Reduce
