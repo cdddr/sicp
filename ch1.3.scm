@@ -254,13 +254,13 @@
 
 ;; This process is similar to how square roots were computed in section 1.1.7. Using a fixed point approach for square roots requires reformulating a bit. y^{2}=x -> y = x / y
 
-(define (sqrt x)			;; does not converge. just cycles back and forth.
-  (fixed-point (lambda (y) (/ x y))
-	       1.0))
+;; (define (sqrt x)			;; does not converge. just cycles back and forth.
+;;   (fixed-point (lambda (y) (/ x y))
+;; 	       1.0))
 
-(define (sqrt x)			;; this does converge, due to average damping. equivalent to 1.1.7
-  (fixed-point (lambda (y) (average y (/ x y)))
-	       1.0))
+;; (define (sqrt x)			;; this does converge, due to average damping. equivalent to 1.1.7
+;;   (fixed-point (lambda (y) (average y (/ x y)))
+;; 	       1.0))
 
 
 ;; Exercise 1.35 - Show that the golden ratio is a fixed point of the transformation x |-> 1 + 1/x
@@ -295,3 +295,94 @@
 	       25.0))
 
 ;; Exercise 1.37 - k-term finite continued fraction
+(define (cont-frac n d k)
+  (define (recur n d k i)
+    (if (= k i)
+	(/ (n i) (d i))
+	(/ (n i) (+ (d i) (recur n d k (+ i 1))))))
+  (recur n d k 1))
+
+(define (cont-frac-iter n d k)
+  (define (iter n d i result)
+    (cond ((= i 0) result)
+	  ((= i k) (iter n d (- i 1) (/ (n i) (d i))))
+	  (else
+	   (iter n d (- i 1) (/ (n i) (+ (d i) result))))))
+  (iter n d k 0))
+
+(define (ex1-37-within-tolerance? result target tolerance)
+  (<= (abs (- target result)) tolerance))
+
+(define (ex1-37-profile proc target tolerance k)
+  (if (ex1-37-within-tolerance? (proc k)
+				(target)
+				tolerance)
+      ((lambda (proc k)
+	 (display "approximate : ")
+	 (display (proc k))
+	 (newline)
+	 (display "exact (ish) : ")
+	 (display (target))
+	 (newline)
+	 k) proc k)
+      (ex1-37-profile proc target tolerance (+ k 1))))
+
+;; Profile Results - it takes a k of 13 to get an approximation that is accurate to 4 decimal places
+;; racket@> (ex1-37-profile (lambda (k)
+;; 			   (/ 1  (cont-frac-iter (lambda (i) 1.0) (lambda (i) 1.0) k)))
+;; 			 0.00001 1)
+;; 1.6180257510729614
+;; 1.618033988749895
+;; 13
+;; racket@> (ex1-37-profile (lambda (k)
+;; 			   (/ 1  (cont-frac (lambda (i) 1.0) (lambda (i) 1.0) k)))
+;; 			 0.00001 1)
+;; 1.6180257510729614
+;; 1.618033988749895
+;; 13
+;; racket@>
+
+;; Exercise 1.38 - Euler continued fraction expansion for e
+
+(define (ex1-38-euler tolerance)
+  (ex1-37-profile (lambda (k)
+		    (cont-frac-iter (lambda (i) 1.0)
+				    (lambda (i)
+				      ;; if i % 3 == 0 or i % 3 == 1, result is 1
+				      (let ((imod (modulo i 3)))
+					(cond ((or (= imod 0) (= imod 1)) 1)
+					      ((= imod 2) (- i (quotient i 3))))))
+				    k))
+		  (lambda () (- (exp 1.0) 2))
+		  tolerance 1))
+;; Results
+;; racket@> (ex1-38-euler 0.00001)
+;; approximate : 0.7182795698924731
+;; exact (ish) : 0.7182818284590451
+;; 8
+;; racket@> (ex1-38-euler 0.000001)
+;; approximate : 0.7182817182817183
+;; exact (ish) : 0.7182818284590451
+;; 10
+;; racket@>
+
+;; Exercise 1.39 - Lambert's continued fraction expansion for tan
+(define (tan-cf x k)
+  (cont-frac-iter (lambda (i)
+		    (if (= i 1)
+			x
+			(- (* x x))))
+		  (lambda (i)
+		    (- (* 2 i) 1))
+		  k))
+
+;; Results: Looks good.
+;; racket@> (tan-cf (/ pi 4) 25)
+;; 1.0
+;; racket@> (tan-cf (/ pi 3) 25)
+;; 1.732050807568877
+;; racket@> (tan (/ pi 4))
+;; 0.9999999999999999
+;; racket@> (tan (/ pi 3))
+;; 1.7320508075688767
+
