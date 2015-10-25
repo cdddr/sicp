@@ -386,3 +386,173 @@
 ;; racket@> (tan (/ pi 3))
 ;; 1.7320508075688767
 
+;; Section 1.3.4
+(define (average-damp f)
+  (lambda (x) (average x (f x))))
+
+(define (sqrt x)
+  (fixed-point (average-damp (lambda (y) (/ x y))) 1.0))
+
+(define (cube-root x)
+  (fixed-point (average-damp (lambda (y) (/ x (square y))))
+	       1.0))
+
+;; Newton's Method
+(define dx 0.00001) 
+(define (deriv g)
+  (lambda (x)
+    (/ (- (g (+ x dx)) (g x))
+       dx)))
+
+(define (newton-transform g)
+  (lambda (x)
+    (- x (/ (g x) ((deriv g) x)))))
+
+(define (newtons-method g guess)
+  (fixed-point (newton-transform g) guess))
+
+(define (sqrt x)
+  (newtons-method (lambda (y) (- (square y) x)) 1.0))
+
+;; Abstracting Fixed point methods further
+(define (fixed-point-of-transform g transform guess)
+  (fixed-point (transform g) guess))
+
+(define (sqrt x)
+  (fixed-point-of-transform (lambda (y) (/ x y)) average-damp 1.0))
+
+(define (sqrt x)
+  (fixed-point-of-transform (lambda (y) (- (square y) x)) newton-transform 1.0))
+
+;; "Should be alert to opportunities to identify the underlying abstractions in our programs and build upon them and generalize them to create more powerful abstractions"
+
+;; Exercise 1.40
+(define (cube x) (* x x x))
+(define (cubic a b c)
+  (lambda (x)
+    (+ (cube x) (* a (square x)) (* b x) c)))
+
+;; Exercise 1.41
+(define (double p)
+  (lambda (x)
+    (p (p x))))
+
+;; double should return : 2^4 + 5 = 21
+
+;; Exercise 1.42
+(define (compose f g)
+  (lambda (x)
+    (f (g x))))
+
+;; racket@> ((compose square inc) 6)
+;; 49
+
+;; Exercise 1.43 - Iterative Approach
+;; TODO : investigat whether the iterative approach saves steps vs recursive.
+(define (repeated f n)
+  (define (iter f i result)
+    (if (> i n)
+	result
+	(iter f (+ i 1) (f result))))
+  (lambda (x)
+    (iter f 1 x)))
+
+;; racket@> ((repeated square 2) 5)
+;; 625
+
+;; Exercise 1.44
+(define dx 0.01)
+(define (smooth f)
+  (lambda (x)
+    (/ 3 (+ (f (- x dx)) (f x) (f (+ x dx))))))
+
+(define (n-smooth f n x)
+  ((repeated (smooth f) n) x))
+
+;; Exercise 1.45
+;; (define (nth-root x n)
+;;   (fixed-point-of-transform (lambda (y) (/ x (expt y (- n 1))))
+;; 			    (repeated average-damp 3)
+;; 			    1.0))
+;; # of damps, n of root, converges?
+;; 0, 2, n
+;; 1, 2, y
+;; 1, 3, y
+;; 1, 4, n
+;; 2, 4, y
+;; 2, 5, y
+;; 2, 6, y
+;; 2, 7, y
+;; 2, 8, n
+;; 3, 8, y
+;; 3, 9, y
+;; 3, 10, y
+;; 3, 11, y
+;; 3, 12, y
+;; 3, 13, y
+;; 3, 14, y
+;; 3, 15, y
+;; 3, 16, n
+;; n average damps seems to get through 2^n roots.
+(define (logb x b)
+  (/ (log x) (log b)))
+
+(define (get-root-damps n)
+  (floor (logb n 2)))
+
+(define (nth-root x n)
+  (fixed-point-of-transform (lambda (y) (/ x (expt y (- n 1))))
+			    (repeated average-damp (get-root-damps n))
+			    1.0))
+
+;; Exercise 1.46 - Iterative Improvement
+;; (define (sqrt-iter guess x)
+;;   (if (good-enough? guess x)
+;;       guess
+;;       (sqrt-iter (improve guess x)
+;; 		 x)))
+;; (define (improve guess x)
+;;   (average guess (/ x guess)))
+;; (define (good-enough? guess x)
+;;   (< (abs (- (square guess) x)) 0.001))
+;; (define (average x y)
+;;   (/ (+ x y) 2))
+
+;; (define (fixed-point f first-guess)
+;;   (define (close-enough? v1 v2)
+;;     (< (abs (- v1 v2)) tolerance))
+;;   (define (try guess)
+;;     (let ((next (f guess)))
+;;       (if (close-enough? guess next)
+;; 	  next
+;; 	  (try next))))
+;;   (try first-guess))
+(define (iterative-improve good-enough? improve)
+  (define (iter guess)
+    (let ((improved (improve guess)))
+      (if (good-enough? guess)
+	  improved
+	  (iter improved))))
+  (lambda (x)
+    (iter x)))
+
+(define (ii-sqrt x)
+  ((iterative-improve (lambda (guess) (< (abs (- (square guess) x)) 0.0001))
+		      (lambda (guess) (average guess (/ x guess)))) x))
+
+;; racket@> (ii-sqrt 2.0)
+;; 1.4142135623746899
+;; 1.41421356237
+
+(define (ii-fixed-point f guess)
+  ((iterative-improve (lambda (x)
+			(< (abs (- (f x) x)) tolerance))
+		      (lambda (x) (f x))) guess))
+
+(define (golden-ratio)
+  (ii-fixed-point (lambda (x) (+ 1 (/ 1 x)))
+	       1.0))
+
+;; 2:  1.61803398875
+;; racket@> (golden-ratio)
+;; 1.6180339887496482
