@@ -1,4 +1,4 @@
-;;; Introduction to Data Abstraction
+`4;;; Introduction to Data Abstraction
 
 ;;; Data abstraction is a methodology that enables us to isolate how a compound data object is used from the details
 ;;; of how it is constructed from more primitive data objects.
@@ -476,5 +476,69 @@
 ;; racket@> (compare-mul-interval-alg -3 -2 -1 4)
 ;; #t
 ;;; 9a. Swap of one interval spans zero, one negative or zero
-;; racket@> (compare-mul-interval-alg 0 3 -1 0)
+;; racket@> 
 ;; #t
+
+(define (make-center-width c w)
+  (make-interval (- c w) (+ c w)))
+
+(define (center i)
+  (/ (+ (lower-bound i) (upper-bound i)) 2))
+
+(define (width i)
+  (/ (- (upper-bound i) (lower-bound i)) 2))
+
+;; Exercise 2.12
+(define (make-center-percent c p)
+  (let ((w (* (/ p 100.0) c)))
+    (make-center-width c w)))
+
+(define (percent i)
+  (* (/ (width i) (center i)) 100.0))
+  
+;; Exercise 2.13 - Notebook
+
+;;; Exercise 2.14
+(define (par1 r1 r2)
+  (div-interval (mul-interval r1 r2)
+		(add-interval r1 r2)))
+
+(define (par2 r1 r2)
+  (let ((one (make-interval 1 1)))
+    (div-interval one
+		  (add-interval (div-interval one r1)
+				(div-interval one r2)))))
+
+;;; if an interval is done with a very small percentage away from center, then division of an interval into
+;;; itself is closer an interval of (1, 1)
+;; racket@> (let ((A (make-center-percent 5.0 2)))
+;; 	   (div-interval A A))
+;; '(0.9607843137254903 . 1.040816326530612)
+;; racket@> (let ((A (make-center-percent 5.0 10)))
+;; 	   (div-interval A A))
+;; '(0.8181818181818182 . 1.222222222222222)
+;; racket@> (let ((A (make-center-percent 5.0 25)))
+;; 	   (div-interval A A))
+;; '(0.6 . 1.6666666666666667)
+;; racket@> (let ((A (make-center-percent 5.0 0.01)))
+;; 	   (div-interval A A))
+;; '(0.9998000199980004 . 1.000200020002)
+;; racket@> (let ((A (make-center-percent 5.0 0.00001)))
+;; 	   (div-interval A A))
+;; '(0.9999998000000202 . 1.0000002000000199)
+;; racket@>
+
+;;; It also seems that with interval arithmetic some properties do not hold. For instance, the distributive property :
+;; racket@> (let ((a (make-interval 1.0 2.0))
+;; 	       (b (make-interval 2.0 3.0))
+;; 	       (c (make-interval 3.0 4.0)))
+;; 	   (display "a*(b + c) : ") (display (mul-interval a (add-interval b c))) (newline) (display "a*b + b*c : ") (display (add-interval (mul-interval a b) (mul-interval b c))) (newline))
+;; a*(b + c) : (5.0 . 14.0)
+;; a*b + b*c : (8.0 . 18.0)
+
+;;; Exercise 2.15 - Eva is right, because the error isn't re-introduced if each interval is used only once.
+
+;;; Exercise 2.16 - "Very Difficult" - I'll have to keep thinking about it, but this seems like a very tricky proposition. Equivalent algebraic expressions lead to different answers because what we take to be the rules of algebra do not apply (see the error in the distributive property above) to the interval arithmetic system.
+
+
+
