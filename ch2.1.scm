@@ -541,4 +541,3 @@
 ;;; Exercise 2.16 - "Very Difficult" - I'll have to keep thinking about it, but this seems like a very tricky proposition. Equivalent algebraic expressions lead to different answers because what we take to be the rules of algebra do not apply (see the error in the distributive property above) to the interval arithmetic system.
 
 
-
