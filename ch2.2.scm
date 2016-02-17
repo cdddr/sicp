@@ -257,3 +257,126 @@
 ;; '(1 2 3 4 1 2 3 4)
 ;; racket@> (fringe-1 (list 1 (list 2 3 (list 4 5 6 (list 7 8 9))) (list 10 11)))
 ;; '(1 2 3 4 5 6 7 8 9 10 11)
+
+;;; Exercise 2.29
+(define (make-mobile left right)
+  (list left right))
+
+(define (make-branch length structure)
+  (list length structure))
+
+(define (left-branch mobile)
+  (car mobile))
+
+(define (right-branch mobile)
+  (cadr mobile))
+
+(define (branch-length branch)
+  (car branch))
+
+(define (branch-structure branch)
+  (cadr branch))
+
+;; racket@> (left-branch (make-mobile (make-branch 1 2.0) (make-branch 2 3.0)))
+;; '(1 2.0)
+;; racket@> (right-branch (make-mobile (make-branch 1 2.0) (make-branch 2 3.0)))
+;; '(2 3.0)
+;; racket@> (right-branch (make-mobile (make-branch 1 2.0) (make-branch 2 (make-mobile (make-branch 3 1) (make-branch 4 1)))))
+;; '(2 ((3 1) (4 1)))
+;; racket@> (branch-length (right-branch (make-mobile (make-branch 1 2.0) (make-branch 2 (make-mobile (make-branch 3 1) (make-branch 4 1))))))
+;; 2
+;; racket@> (branch-structure (right-branch (make-mobile (make-branch 1 2.0) (make-branch 2 (make-mobile (make-branch 3 1) (make-branch 4 1))))))
+;; '((3 1) (4 1))
+;;; so far, so good.
+
+(define (total-weight mobile)
+  (define (iter mobile sum)
+    (cond ((null? mobile) sum)
+	  ((not (pair? mobile)) (+ mobile sum))
+	  (else
+	   (iter (branch-structure (left-branch mobile))
+		 (iter (branch-structure (right-branch mobile)) sum)))))
+  (iter mobile 0))
+
+
+;;; We have two requirements :
+;;;  1) The torque of each branch is equal to each other (length * weight)
+;;;  2) Each sub-mobile must also be be balanced.
+
+;;; We need to recurse through the entire tree to find the weight hanging off the top left and top right branches
+;;; As we reach each mobile we must also keep track of each sub-mobiles balanced-ness. Should be able to keep track
+;;; of a boolean value and if they call come back #t and the torques are equal, we are good.
+
+;;; naive version...two passes. One to calculate the total torque on the top branches, one to ensure each sub-mobile
+;;; is balanced.
+(define (branch-torque branch)
+  (* (branch-length branch) (total-weight (branch-structure branch))))
+
+(define (balanced-mobile? mobile)
+  (cond ((null? mobile) #t)
+	((not (pair? mobile)) #t)
+	(else
+	 
+	 (and (=
+	       (branch-torque (left-branch mobile))
+	       (branch-torque (right-branch mobile)))
+	      (balanced-mobile? (branch-structure (left-branch mobile)))
+	      (balanced-mobile? (branch-structure (right-branch mobile)))))))
+
+;;; This version is actually a multi pass approach, since I descend the tree at every sub-mobile to get the weight.
+;;; Super inefficient, but it seems to work.
+
+;;;                                            x
+;;;                                           / \
+;;;                                       1  /   \ 2
+;;;                                         /     \
+;;;                                       100      +
+;;;                                               / \
+;;;                                              /   \
+;;;                                           4 /     \ 1
+;;;                                            /       \
+;;;                                           +         +
+;;;                                          / \        | \
+;;;                                       2 /   \ 3    3|  \ 1
+;;;                                        /     \      |   \
+;;;                                       6       4    10    30
+
+(define test-mobile
+  (make-mobile (make-branch 1 100)
+	       (make-branch 2
+			    (make-mobile (make-branch 4
+						      (make-mobile (make-branch 2 6)
+								   (make-branch 3 4)))
+					 (make-branch 1
+						      (make-mobile (make-branch 3 10)
+								   (make-branch 1 30)))))))
+
+;; racket@> (balanced-mobile? test-mobile)
+;; #t
+
+(define test-mobile-unequal-torque
+  (make-mobile (make-branch 1 100)
+	       (make-branch 3
+			    (make-mobile (make-branch 4
+						      (make-mobile (make-branch 2 6)
+								   (make-branch 3 4)))
+					 (make-branch 1
+						      (make-mobile (make-branch 3 10)
+								   (make-branch 1 30)))))))
+
+;; racket@> (balanced-mobile? test-mobile-unequal-torque)
+;; #f
+
+(define test-mobile-unbalanced-submobile
+  (make-mobile (make-branch 1 100)
+	       (make-branch 2
+			    (make-mobile (make-branch 4
+						      (make-mobile (make-branch 2 6)
+								   (make-branch 3 4)))
+					 (make-branch 1
+						      (make-mobile (make-branch 3 10)
+								   (make-branch 2 30)))))))
+;; racket@> (balanced-mobile? test-mobile-unbalanced-submobile)
+;; #f
+
+;;; This solution works, but is there a way to do a single pass?
