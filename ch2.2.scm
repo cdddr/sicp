@@ -8,7 +8,7 @@
 ;;; Exercise 2.17 - last element of a list
 (define (last-pair list1)
   (if (null? (cdr list1))
-      (cons (car list1) null)
+      (cons (car list1) '())
       (last-pair (cdr list1))))
 
 ;;; Exercise 2.18 - reverse of a list
@@ -17,7 +17,7 @@
     (if (null? list2)
 	revlist
 	(reverse-iter (cdr list2) (cons (car list2) revlist))))
-  (reverse-iter list1 null))
+  (reverse-iter list1 '()))
 
 ;;; Exercise 2.19
 (define us-coins (list 50 25 10 5 1))
@@ -65,7 +65,7 @@
 	(same-parity-iter parity (cdr list1) (if (= (modulo (car list1) 2) parity)
 							     (append paritylist (list (car list1)))
 							     paritylist))))
-  (same-parity-iter (modulo parity 2) (cons parity ints) null))
+  (same-parity-iter (modulo parity 2) (cons parity ints) '()))
 
 ;; racket@> (same-parity 1 2 3 4 5 6 7)
 ;; '(1 3 5 7)
@@ -74,7 +74,7 @@
 
 (define (map proc items)
   (if (null? items)
-      null
+      '()
       (cons (proc (car items))
 	    (map proc (cdr items)))))
 
@@ -85,7 +85,7 @@
 ;;; Exercise 2.21 - square-list two ways
 (define (square-list items)
   (if (null? items)
-      null
+      '()
       (cons (* (car items) (car items)) (square-list (cdr items)))))
 
 (define (square-list items)
@@ -101,7 +101,7 @@
 ;; Interchanging the arguments to cons doesn't work either, because answer is a list, so it is cons'ing a list
 ;; onto the list, not appending the lists together.
 ;; Using the same example (1 2 3 4) :
-;;  (cons null 1)
+;;  (cons '() 1)
 ;;  (cons (() 1) 4)
 ;;  (cons ((() 1) 4) 9)
 ;;  (cons (((() 1) 4) 9) 16)
@@ -115,7 +115,7 @@
 	(iter (cdr things)
 	      (cons answer
 		    (square (car things))))))
-  (iter items null))
+  (iter items '()))
 
 ;; racket@> (square-list-louis-2 (list 1 2 3 4))
 ;; '((((() . 1) . 4) . 9) . 16)
@@ -211,7 +211,7 @@
 	   (iter (cdr lst) (cons  (deep-reverse (car lst)) revlst)))
 	  (else
 	   (iter (cdr lst) (cons (car lst) revlst)))))
-  (iter lst null))
+  (iter lst '()))
 
 ;; racket@> x
 ;; '((1 2) (3 4) (5 (6 7)))
@@ -222,7 +222,7 @@
 ;; TODO : I'm not quite sure how to do this using pure recursion yet. The recursive version I initially  wrote out is
 ;;        is preserving the list structure, not flattening tree.
 (define (fringe tree)
-  (define leaves null)
+  (define leaves '())
   (define (iter lst)
     (cond ((null? lst) leaves)
 	  ((not (pair? lst)) (set! leaves (cons lst leaves)))
@@ -316,7 +316,6 @@
   (cond ((null? mobile) #t)
 	((not (pair? mobile)) #t)
 	(else
-	 
 	 (and (=
 	       (branch-torque (left-branch mobile))
 	       (branch-torque (right-branch mobile)))
@@ -380,3 +379,97 @@
 ;; #f
 
 ;;; This solution works, but is there a way to do a single pass?
+;;; TODO : Not going to prematurely optimize this, but would be a cool problem to explore
+
+;;; Suppose the new constructors are :
+
+(define (make-mobile left right)
+  (cons left right))
+
+(define (make-branch length structure)
+  (cons length structure))
+
+;;; Q: what changes need to be made?
+;;; A: none!
+
+(define (scale-tree tree factor)
+  (cond ((null? tree) '())
+	((not (pair? tree)) (* tree factor))
+	(else (cons (scale-tree (car tree) factor)
+		    (scale-tree (cdr tree) factor)))))
+
+;; #;83> (scale-tree (list 1 (list 2 (list 3 4) 5) (list 6 7)) 10)
+;; (10 (20 (30 40) 50) (60 70))
+
+;;; Alternate implementation using map to scale each sub tree
+(define (scale-tree tree factor)
+  (map (lambda (sub-tree)
+	 (if (pair? sub-tree)
+	     (scale-tree sub-tree factor)
+	     (* sub-tree factor)))
+       tree))
+
+;; #;114> (scale-tree (list 1 (list 2 (list 3 4) 5) (list 6 7)) 10)
+;; (10 (20 (30 40) 50) (60 70))
+
+(define (square-tree tree)
+  (cond ((null? tree) '())
+	((not (pair? tree)) (* tree tree))
+	(else (cons (square-tree (car tree))
+		    (square-tree (cdr tree))))))
+
+;; #;151> (square-tree (list 1 (list 2 (list 3 4) 5) (list 6 7)))
+;; (1 (4 (9 16) 25) (36 49))
+
+(define (square-tree tree)
+  (map (lambda (sub-tree)
+	 (if (pair? sub-tree)
+	     (square-tree sub-tree)
+	     (* sub-tree sub-tree)))
+       tree))
+
+;; #;189> (square-tree (list 1 (list 2 (list 3 4) 5) (list 6 7)))
+;; (1 (4 (9 16) 25) (36 49))
+
+(define (tree-map lmbdf tree)
+  (map (lambda (sub-tree)
+	 (if (pair? sub-tree)
+	     (tree-map lmbdf sub-tree)
+	     (lmbdf sub-tree)))
+       tree))
+(define (square-tree tree)
+  (tree-map (lambda (x) (* x x)) tree))
+
+;; #;193> (square-tree (list 1 (list 2 (list 3 4) 5) (list 6 7)))
+;; (1 (4 (9 16) 25) (36 49))
+
+(define (subsets s)
+  (if (null? s)
+      (list '())
+      (let ((rest (subsets (cdr s))))
+	(append rest (map (lambda (x)
+			    (cons (car s) x)) rest)))))
+
+;; #;645> (subsets (list 1 2 3))
+;; (() (3) (2) (2 3) (1) (1 3) (1 2) (1 2 3))
+;; #;653> (subsets (list 1 2 3 4))
+;; (() (4) (3) (3 4) (2) (2 4) (2 3) (2 3 4) (1) (1 4) (1 3) (1 3 4) (1 2) (1 2 4) (1 2 3) (1 2 3 4))
+
+;;; This works by "mixing in" the car of s at each let binding.
+;;; After recursion it ends up expanding like so:
+;; (let ((rest
+;;        (let ((rest
+;; 	      (let ((rest
+;; 		     (let ((rest '()))				s='() rest='()
+;; 		       (append rest (map (lambda (x)
+;;					     (cons (car s) x)) rest))))))))))))
+;;;			this results in '(())
+;;; normally (car '()) would be a problem, but it never gets executed becase rest is itself empty.
+;;; unwinding the let bindings at the next step we now have
+;; (let ((rest
+;;        (let ((rest
+;; 	      (let ((rest '(()) )))				s='(3) rest='(())
+;; 		(append rest (map (lambda (x)
+;; 				    (cons (car s) x)) rest)))))))))
+;;; this results in '(() '(3)). the next step will give '(() (3) (2) (2 3)) and so on.
+
