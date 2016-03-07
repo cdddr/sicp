@@ -469,7 +469,155 @@
 ;; (let ((rest
 ;;        (let ((rest
 ;; 	      (let ((rest '(()) )))				s='(3) rest='(())
-;; 		(append rest (map (lambda (x)
+;; 		(append rest (map (lambda (x)  
 ;; 				    (cons (car s) x)) rest)))))))))
 ;;; this results in '(() '(3)). the next step will give '(() (3) (2) (2 3)) and so on.
+
+
+;;; Section 2.2.3 - Sequences as Conventional Interfaces
+;;; ----------------------------------------------------
+
+;;; normal recursive definition of summing the odd squares of a tree
+(define (square x)
+  (* x x))
+
+(define (sum-odd-squares tree)
+  (cond ((null? tree) 0)
+	((not (pair? tree))
+	 (if (odd? tree) (square tree) 0))
+	(else (+ (sum-odd-squares (car tree))
+		 (sum-odd-squares (cdr tree))))))
+
+;; #;36> (sum-odd-squares (list 1 (list 2 (list 3 4) 5) (list 6 7)))
+;; 84
+
+;;; Need some building blocks to move towards a signal processing representation
+
+(define nil '())
+
+(define (filter predicate sequence)
+  (cond ((null? sequence) nil)
+	((predicate (car sequence))
+	 (cons (car sequence)
+	       (filter predicate (cdr sequence))))
+	(else (filter predicate (cdr sequence)))))
+
+(define (accumulate op initial sequence)
+  (if (null? sequence)
+      initial
+      (op (car sequence)
+	  (accumulate op initial (cdr sequence)))))
+
+(define (enumerate-interval low high)
+  (if (> low high)
+      nil
+      (cons low (enumerate-interval (+ low 1) high))))
+
+(define (enumerate-tree tree)
+  (cond ((null? tree) nil)
+	((not (pair? tree)) (list tree))
+	(else (append (enumerate-tree (car tree))
+		      (enumerate-tree (cdr tree))))))
+
+
+;; #;121> (accumulate + 0 (list 1 2 3 4 5))
+;; 15
+;; #;127> (accumulate * 1 (list 1 2 3 4 5))
+;; 120
+;; #;130> (accumulate cons nil (list 1 2 3 4 5))
+;; (1 2 3 4 5)
+;; #;135> (enumerate-interval 0 10)
+;; (0 1 2 3 4 5 6 7 8 9 10)
+;; #;160> (enumerate-tree (list 1 (list 2 (list 3 4)) 5))
+;; (1 2 3 4 5)
+;; #;192>
+
+;;; Signal Processing style:
+
+(define (sum-odd-squares tree)
+  (accumulate + 0 (map square
+		       (filter odd?
+			       (emumerate-tree tree)))))
+
+(define (fib n)
+  (fib-linear-iter 1 0 n))
+
+(define (fib-linear-iter a b count)
+  (if (= count 0)
+      b
+      (fib-linear-iter (+ a b) a (- count 1))))
+
+
+(define (even-fibs n)
+  (accumulate cons nil (filter even?
+			       (map fib
+				    (enumerate-interval 0 n)))))
+
+(define (list-fib-squares n)
+  (accumulate cons nil
+	      (map square
+		   (map fib
+			(enumerate-interval 0 n)))))
+
+;; #;262> (list-fib-squares 10)
+;; (0 1 1 4 9 25 64 169 441 1156 3025)
+
+(define (product-of-squares-of-odd-elements seq)
+  (accumulate * 1
+	      (map square
+		   (filter odd? seq))))
+
+
+;; #;299> (product-of-squares-of-odd-elements (list 1 2 3 4 5))
+;; 225
+
+;;; Exercise 2.33
+(define (map p sequence)
+  (accumulate (lambda (x y) (cons (p x) y)) nil sequence))
+
+;; #;303> (map square (list 1 2 3 4))
+;; (1 4 9 16)
+;; #;327> (map square (list 1 2 3 4 5 6))
+;; (1 4 9 16 25 36)
+;; #;329> (map fib (list 1 2 3 4 5 6))
+;; (1 1 2 3 5 8)
+
+(define (append-my seq1 seq2)
+  (accumulate cons seq2 seq1))
+
+;; #;381> (append-my (list 1 2 3) (list 2 3 4))
+;; (1 2 3 2 3 4)
+
+(define (length sequence)
+  (accumulate + 0 (map (lambda (x) 1) sequence)))
+
+;; #;422> (length (list 1 2 3 4 5 6))
+;; 6
+
+;;; Exercise 2.34 - Horner's Rule
+
+(define (horner-eval x coefficient-sequence)
+  (accumulate (lambda (this-coeff higher-terms)
+		(+ this-coeff (* x higher-terms)))
+	      0
+	      coefficient-sequence))
+
+
+;; #;426> (horner-eval 2 (list 1 3 0 5 0 1))
+;; 79
+
+;;; Exercise 2.35 - Redefine count-leaves as an accumulation
+
+(define (count-leaves-old x)
+  (cond ((null? x) 0)
+	((not (pair? x)) 1)
+	(else (+ (count-leaves-old (car x))
+		 (count-leaves-old (cdr x))))))
+
+(define (count-leaves tree)
+  (accumulate + 0 (map (lambda (x) 1)
+		       (enumerate-tree tree))))
+
+;; #;538> (count-leaves (list 1 (list 2 (list 3 4) 5 (list 6 7))))
+;; 7
 
