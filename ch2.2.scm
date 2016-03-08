@@ -572,7 +572,7 @@
 ;; 225
 
 ;;; Exercise 2.33
-(define (map p sequence)
+(define (my-map p sequence)
   (accumulate (lambda (x y) (cons (p x) y)) nil sequence))
 
 ;; #;303> (map square (list 1 2 3 4))
@@ -621,3 +621,51 @@
 ;; #;538> (count-leaves (list 1 (list 2 (list 3 4) 5 (list 6 7))))
 ;; 7
 
+
+;;; Exercise 2.36
+(define (accumulate-n op init seqs)
+  (if (null? (car seqs))
+      nil
+      (cons (accumulate op init (map car seqs))
+	    (accumulate-n op init (map cdr seqs)))))
+
+;;; Exercise 2.37 - Matrix algebra
+;;; Chicken doesn't seem to suppor the more general version of map. Rolled my own.
+(define (dot-product v w)
+  (accumulate + 0 (accumulate-n * 1 (list v w))))
+
+;; #;119> (dot-product (list 1 2 3 4) (list 1 2 3 4))
+;; 30
+
+(define (matrix-*-vector m v)
+  (map (lambda (w)
+	 (dot-product v w)) m))
+
+;; #;141> (matrix-*-vector (list (list 1 2 3) (list 4 5 6) (list 7 8 9) (list 10 11 12)) (list -2 1 0))
+;; (0 -3 -6 -9)
+
+(define (transpose mat)
+  (accumulate-n cons nil mat))
+
+;; #;198> (transpose (list (list 11 12 13) (list 21 22 23) (list 31 32 33)))
+;; ((11 21 31) (12 22 32) (13 23 33))
+
+(define (matrix-*-matrix m n)
+  (let ((cols (transpose n)))
+    (map (lambda (mk)
+	   (map (lambda (nk)				 ; this is matrix-*-vector
+		  (dot-product mk nk)) cols)) m)))	 ;
+
+;;; switched back to racket, b/c it works better with geiser it seems
+;; racket@> (matrix-*-matrix (list (list 1 2 3) (list 4 5 6)) (list (list 1 2) (list 3 4) (list 5 6)))
+;; '((22 28) (49 64))
+
+
+(define (matrix-*-matrix m n)
+  (let ((cols (transpose n)))
+    (map (lambda (mk)
+	   (matrix-*-vector cols mk)) m)))
+
+;;; Same results
+;; racket@> (matrix-*-matrix (list (list 1 2 3) (list 4 5 6)) (list (list 1 2) (list 3 4) (list 5 6)))
+;; '((22 28) (49 64))
