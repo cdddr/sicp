@@ -1,5 +1,4 @@
 ;;; Hierarchical Data and the closure property
-
 (define (append list1 list2)
   (if (null? list1)
       list2
@@ -669,3 +668,127 @@
 ;;; Same results
 ;; racket@> (matrix-*-matrix (list (list 1 2 3) (list 4 5 6)) (list (list 1 2) (list 3 4) (list 5 6)))
 ;; '((22 28) (49 64))
+
+;; Exercise 2.38
+(define fold-right accumulate)
+
+(define (fold-left op initial sequence)
+  (define (iter result rest)
+    (if (null? rest)
+	result
+	(iter (op result (car rest))
+	      (cdr rest))))
+  (iter initial sequence))
+
+;; (fold-right / 1 (list 1 2 3)) should give 3/2
+;; (fold-left / 1 (list 1 2 3)) should give 1/6
+
+;;; property that op should satisfy to guarantee that fold-right and fold-left will produce the same values for
+;;; any sequence -- it would have to be associative like the typical algebraic ops
+
+(define (reverse sequence)
+  (fold-right (lambda (x y) (append y (list x))) nil sequence))
+
+;; racket@> (reverse (list 1 2 3))
+;; '(3 2 1)
+
+(define (reverse sequence)
+  (fold-left (lambda (x y) (cons y x)) nil sequence))
+
+;; racket@> (reverse (list 1 2 3))
+;; '(3 2 1)
+
+
+;;; Nested Mappings
+(define (flatmap proc seq)
+	(accumulate append nil (map proc seq)))
+
+(define (prime-sum? pair)
+	(prime? (+ (car pair) (cadr pair))))
+
+(define (make-pair-sum pair)
+	(list (car pair) (cadr pair) (+ (car pair) (cadr pair))))
+
+(define (prime-sum-pairs n)
+	(map make-pair-sum
+		(filter prime-sum?
+				(flatmap
+					(lambda (i)
+						(map (lambda (j) (list i j))
+							 (enumerate-interval 1 (- i 1))))
+					(enumerate-interval 1 n)))))
+
+;; > (prime-sum-pairs 6)
+;; '((2 1 3) (3 2 5) (4 1 5) (4 3 7) (5 2 7) (6 1 7) (6 5 11))
+
+(define (permutations s)
+	(if (null? s)
+		(list nil)
+		(flatmap (lambda (x)
+					(map (lambda (p) (cons x p))
+						 (permutations (remove x s))))
+				 s)))
+
+;; > (permutations (list 1 2 3))
+;; '((1 2 3) (1 3 2) (2 1 3) (2 3 1) (3 1 2) (3 2 1))
+
+;; Filter implementations of remove
+(define (remove item seq)
+	(filter (lambda (x) (not (= x item))) seq))
+
+;; Still works
+;; > (permutations (list 1 2 3))
+;; '((1 2 3) (1 3 2) (2 1 3) (2 3 1) (3 1 2) (3 2 1))
+
+;;; Exercise 2.40
+
+(define (unique-pairs n)
+  (flatmap (lambda (i)
+		(map (lambda (j)
+		       (list i j)) (enumerate-interval 1 (- i 1)))) (enumerate-interval 1 n)))
+
+(define (prime-sum-pairs n)
+  (map make-pair-sum (filter prime-sum? (unique-pairs n))))
+
+;;; Exercise 2.41
+(define (triple-sum-eq triple s)
+  (= (accumulate + 0 triple) s))
+
+(define (>!=? accum x)
+  (let ((y (car accum))
+	(z (cadr accum)))
+    (list x (and z (> x y) (not (= x y))))))
+
+(define (distinct-and-ordered? seq)
+  (cadr (fold-left >!=? '(0 #t) seq)))
+
+(define (make-triples n)
+  (flatmap (lambda (i)
+	       (flatmap (lambda (j)
+		      (map (lambda (k)
+			     (list i j k)) (enumerate-interval 1 n)))
+		    (enumerate-interval 1 n)))
+	   (enumerate-interval 1 n)))
+
+;;; if n > s, we don't need em, so lets just use s
+(define (find-distinct-ordered-triples-for-sum n s)
+  (filter (lambda (i)
+	    (triple-sum-eq i s)) (filter distinct-and-ordered? (make-triples s))))
+
+
+;;; This seems to do the trick, but is very brute force. I think it should be possible to generate the list
+;;; without first  building all tuples
+(define (make-triples n)
+  (flatmap (lambda (i)
+	       (flatmap (lambda (j)
+		      (map (lambda (k)
+			     (list i j k)) (enumerate-interval (+ j 1) n)))
+		    (enumerate-interval (+ i 1) n)))
+	   (enumerate-interval 1 n)))
+
+;;; with old make-triples
+;; racket@> (time (find-distinct-ordered-triples-for-sum 10000 100))
+;; cpu time: 750 real time: 750 gc time: 390
+
+;; racket@> (time (find-distinct-ordered-triples-for-sum 10000 100))
+;; cpu time: 190 real time: 191 gc time: 67
