@@ -792,3 +792,131 @@
 
 ;; racket@> (time (find-distinct-ordered-triples-for-sum 10000 100))
 ;; cpu time: 190 real time: 191 gc time: 67
+
+;;; Exercise 2.42 - Eight Queens Puzzle
+(define (queens board-size)
+  (define (queen-cols k)
+    (if (= k 0)
+	(list empty-board)
+	(filter
+	 (lambda (positions) (safe? k positions))
+	 (flatmap
+	  (lambda (rest-of-queens)
+	    (map (lambda (new-row)
+		   (adjoin-position new-row k rest-of-queens))
+		 (enumerate-interval 1 board-size)))
+	  (queen-cols (- k 1))))))
+  (queen-cols board-size))
+
+;;; What makes a queen safe?
+;;;  - not in the same row, column, or diagonal
+
+;;; Positions represented by a list pair
+;;; i = columns, j = rows
+(define empty-board nil)
+
+(define (make-position i j)
+  (list i j))
+(define (position-row pos)
+  (cadr pos))
+(define (position-col pos)
+  (car pos))
+
+(define (positions-minus pos1 pos2)
+  (make-position
+   (- (position-col pos1) (position-col pos2))
+   (- (position-row pos1) (position-row pos2))))
+
+(define (position-abs pos)
+  (map (lambda (i)
+	 (abs i)) pos))
+
+(define (position-is-diag? pos)
+  (= (position-row pos) (position-col pos)))
+
+(define (positions-share-row? pos1 pos2)
+  (= (position-row pos1) (position-row pos2)))
+
+(define (positions-share-col? pos1 pos2)
+  (= (position-col pos1) (position-col pos2)))
+
+(define (safe? column positions)
+  (if (= column 1)
+      #t
+      (let ((posk (car positions))
+	    (rest (cdr positions)))
+	(accumulate (lambda (pos accum)
+		      (and accum (not (or
+				       (positions-share-row? posk pos)
+				       (positions-share-col? posk pos)
+				       (position-is-diag? (position-abs (positions-minus posk pos)))))))
+		    #t rest))))
+
+(define (adjoin-position new-row column rest-of-queens)
+  (append (list (list column new-row)) rest-of-queens))
+
+;;; When I run this, I do find the solution in Figure 8 in my set
+;;; This was a real thinker for me. I probably spent so much time on it (~ 2 hours) because I had to first
+;;; understand how the recursion was working. It also took an almost embarassing amount of time for my brain to
+;;; understand how to quantify pieces being on a diagonal from each other.Also, it's almost harder to fill in after
+;;; the fact than to start from the bottom up.
+;;; Solution in Figure 2.8:
+ ;; ((8 3) (7 5) (6 8) (5 4) (4 1) (3 7) (2 2) (1 6))
+
+;;; The solutions for a 2x2 and 3x3 board make sense, since 2x2 no matter where you place column 2 they are
+;;; in check with the other. In 3x3, you can place the first 2 columns, but column 3 can't be placed. Let's
+;;; check our results for a 4x4
+
+;; racket@> (queens 4)
+;; '(((4 3) (3 1) (2 4) (1 2)) ((4 2) (3 4) (2 1) (1 3)))
+
+;; +---+---+---+---+
+;; |   | x |   |   |
+;; +---+---+---+---+
+;; +---+---+---+---+
+;; |   |   |   | x |   ;; Checks out.
+;; +---+---+---+---+
+;; +---+---+---+---+
+;; | x |   |   |   |
+;; +---+---+---+---+
+;; +---+---+---+---+
+;; |   |   | x |   |
+;; +---+---+---+---+
+
+;; +---+---+---+---+
+;; |   |   | x |   |
+;; +---+---+---+---+
+;; +---+---+---+---+
+;; | x |   |   |   |  ;; Also checks out.
+;; +---+---+---+---+
+;; +---+---+---+---+
+;; |   |   |   | x |
+;; +---+---+---+---+
+;; +---+---+---+---+
+;; |   | x |   |   |
+;; +---+---+---+---+
+
+;;; Exercise 2.43
+(define (queens-bad board-size)
+  (define (queen-cols k)
+    (if (= k 0)
+	(list empty-board)
+	(filter
+	 (lambda (positions) (safe? k positions))
+	 (flatmap
+	  (lambda (new-row)
+	    (map (lambda (rest-of-queens)
+		   (adjoin-position new-row k rest-of-queens))
+		 (queen-cols (- k 1))))
+	  (enumerate-interval 1 board-size)))))
+  (queen-cols board-size))
+
+;;; While (queens-bad 8) is running forever, I will try and explain why it takes so long.
+;;; During each 'map' under the flatmap's lambda, it is recursing all the way down until k=1
+;;; Each recursion, is then running its own 'map', when then recurses down again. So there is a 
+;;; lot of recursion going on (to put it midly).
+
+;;; Board Size | queens | queens-bad
+;;;     8      |    23  |   31496     |    1369
+;;;     9      |   130  |  841858     |    6475  
+;;;    10      |   923  |    
