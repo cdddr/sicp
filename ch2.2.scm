@@ -920,3 +920,220 @@
 ;;;     8      |    23  |   31496     |    1369
 ;;;     9      |   130  |  841858     |    6475  
 ;;;    10      |   923  |    
+
+
+;;; Section 2.2.4 - A Picture Language
+
+;; Example right-split 2
+;;;(define (right-split painter 2)
+;;;	(if (= 2 0)
+;;;		painter
+;;;		(let ((smaller (
+;;;						(if (= 1 0)
+;;;							painter
+;;;							(let ((smaller (
+;;;											(if (= 0 0)
+;;;												painter
+;;;											)
+;;;									(beside painter (below smaller smaller))
+
+;;; Exercise 2.44
+(define (up-split painter n)
+	(if (= n 0)
+		painter
+		(let ((smaller (up-split painter (- n 1))))
+			(below painter (beside smaller smaller)))))
+			
+;;; Exercise 2.55
+(define (split dir1 dir2)
+	(lambda (painter n)
+		(if (= n 0)
+			painter
+			(let ((smaller ((split dir1 dir2) painter (- n 1))))
+				(dir1 painter (dir2 smaller smaller))))))
+
+;;; It's a little unclear what is happening with the lambda, so instead
+(define (split dir1 dir2)
+	(define (splitter painter n)
+		(if (= n 0)
+			painter
+			(let ((smaller (splitter painter (- n 1))))
+			  (dir1 painter (dir2 smaller smaller))))))
+
+(define (frame-coord-map frame)
+  (lambda (v)
+    (add-vect (scale-vect (xcor-vect v)
+			  (edge1-frame frame))
+	      (scale-vect (ycor-vect v)
+			  (edge2-frame frame)))))
+
+
+;;; Exercise 2.46 - Vector Definitions
+(define (make-vect x y)
+  (cons x y))
+
+(define (xcor-vect v)
+  (car v))
+(define (ycor-vect v)
+  (cdr v))
+
+(define (add-vect v1 v2)
+  (make-vect (+ (xcor-vect v1) (xcor-vect v2)) (+ (ycor-vect v1) (ycor-vect v2))))
+
+(define (sub-vect v1 v2)
+  (make-vect (- (xcor-vect v1) (xcor-vect v2)) (- (ycor-vect v1) (ycor-vect v2))))
+
+(define (scale-vect s v)
+  (make-vect (* s (xcor-vect v)) (* s (ycor-vect v))))
+
+
+;;; Exercise 2.47 - Frame Constructors
+(define (make-frame origin edge1 edge2)
+  (list origin edge1 edge2))
+
+(define (origin-frame frame)
+  (car frame))
+(define (edge1-frame frame)
+  (cadr frame))
+(define (edge2-frame frame)
+  (caddr frame))
+
+;; racket@> (origin-frame (make-frame 1 2 3))
+;; 1
+;; racket@> (edge1-frame (make-frame 1 2 3))
+;; 2
+;; racket@> (edge2-frame (make-frame 1 2 3))
+;; 3
+
+(define (make-frame origin edge1 edge2)
+  (cons origin (cons edge1 edge2)))
+
+(define (edge2-frame frame)
+  (cddr frame))
+
+;; racket@> (origin-frame (make-frame 1 2 3))
+;; 1
+;; racket@> (edge1-frame (make-frame 1 2 3))
+;; 2
+;; racket@> (edge2-frame (make-frame 1 2 3))
+;; caddr: contract violation
+;;   expected: (cons/c (cons/c any/c pair?) any/c)
+;;   given: '(1 2 . 3)
+;;   context...:
+;;    /usr/share/racket/collects/racket/private/norm-define.rkt:53:83: edge2-frame
+;;    /usr/share/racket/collects/racket/private/misc.rkt:87:7
+;; racket@> (edge2-frame (make-frame 1 2 3))
+;; 3
+
+;;; Exercise 2.48
+(define (make-segment v1 v2)
+  (cons v1 v2))
+
+(define (start-segment seg)
+  (car seg))
+
+(define (end-segment seg)
+  (cdr seg))
+
+;;; Exercise 2.49
+
+(define (segments->painter segment-list)
+  (lambda (frame)
+    (for-each
+     (lambda (segment)
+       (draw-line
+	((frame-coord-map frame) (start-segment segment))
+	((frame-coord-map frame) (end-segment segment))))
+     segment-list)))
+
+;;; Need to be able to turn the frame into a list of line segments
+;;; origin + edge1, origin+edge2, origin+edge2+edge1, origin+edge1+edge2
+(let ((tl (make-vect 0 1))
+      (tr (make-vect 1 1))
+      (bl (make-vect 0 0))
+      (br (make-vect 1 0)))
+;; a) Draw the outline of the designated frame
+  (segments->painter (list
+		      (make-segment bl tl)
+		      (make-segment tl tr)
+		      (make-segment tr br)
+		      (make-segment br bl)))
+  ;; b) draw an X
+  (segments->painter (list
+		      (make-segment bl tr)
+		      (make-segment br tl)))
+  (let ((l (make-vect 0 0.5))
+	(t (make-vect 0.5 1))
+	(r (make-vect 1 0.5))
+	(b (make-vect 0.5 0)))
+    (segments->painter (list
+			(make-segment l t)
+			(make-segment t r)
+			(make-segment r b)
+			(make-segment b l)))))
+
+(define (transform-painter painter origin corner1 corner2)
+  (lambda (frame)
+    (let ((m (frame-coord-map frame)))
+      (let ((new-origin (m origin)))
+	(painter
+	 (make-frame new-origin
+		     (sub-vect (m corner1) new-origin)
+		     (sub-vect (m corner2) new-origin)))))))
+
+(define (flip-vert painter)
+  (transform-painter painter
+		     (make-vect 0.0 1.0)
+		     (make-vect 1.0 1.0)
+		     (make-vect 0.0 0.0)))
+
+(define (shrink-to-upper-right painter)
+  (transform-painter painter
+		     (make-vect 0.5 0.5)
+		     (make-vect 1.0 0.5)
+		     (make-vect 0.5 1.0)))
+
+(define (rotate90 painter)
+  (transform-painter painter
+		     (make-vect 1.0 1.0)
+		     (make-vect 1.0 1.0)
+		     (make-vect 1.0 0.0)))
+
+;;; Exercise 2.50
+
+(define (flip-horiz painter)
+  (transform-painter painter
+		     (make-vect 1.0 0.0)
+		     (make-vect 0.0 0.0)
+		     (make-vect 1.0 1.0)))
+
+(define (rotate180 painter)
+  (rotate90 (rotate90 painter)))
+
+(define (rotate270 painter)
+  (rotate90 (rotate180 painter)))
+
+(define (below painter1 painter2)
+  (let ((split-point (make-vect 0.0 0.5)))
+    (let ((paint-below
+	   (transform-painter painter1
+			      (make-vect 0.0 0.0)
+			      (make-vect 1.0 0.0)
+			      split-point))
+	  (paint-above
+	   (transform-painter painter2
+			      split-point
+			      (make-vect 1.0 0.5)
+			      (make-vect 0.0 1.0))))
+      (lambda (frame)
+	(paint-below frame)
+	(paint-above frame)))))
+
+(define (below painter1 painter2)
+  (rotate90 (beside (rotate270 painter1) (rotate270 painter2))))
+
+;;; In this book the "closure property" is in the abstract algebra sense. That if an operation on members of a set produces members of the same set. The operation is "closed"
+
+;;; Skipping Exercise 2.52
+
+
