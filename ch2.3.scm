@@ -675,6 +675,7 @@ false
 ;; racket@> (decode sample-message sample-tree)
 ;; '(A D A B B C A)
 
+;; Exercise 2.68
 (define (encode message tree)
   (if (null? message)
       '()
@@ -733,3 +734,76 @@ false
 
 ;;; If it was a fixed length encoding we would need 3 bits per symbol, we used 36 symbols, so 108 bits total. We saved 24 bits.
 
+;;; Exercise 2.71
+
+;; 		+
+;; 	       / \
+;; 	      /   \
+;; 	     +     A 16
+;; 	    / \
+;;        /   \
+;;       +     B 8
+;;      / \
+;;     /   C 4
+;;    +
+;;   / \
+;;  /   \
+;; E 1   D 2
+
+;; The most frequent symbol will use 1 bit, the least frequent n-1 bits.
+
+;; Exercise 2.72
+;; Encoding the most frequent symbol will be O(n) since we just need to make sure the symbol is there.
+;; Encoding the least frequent symbol is a little trickier....We are reducing the set of symbols at each
+;; node by 1 in the case of a tree like in 2.71...So it will be O(n) + O(n-1) + O(n-2) + O(n-3) + ... + O(1) i think.
+;; This is close to n*O(n) ~ O(n^2). Let's check
+
+(define (build-symbols-ex-2.72 n)
+  (define (iter i syms)
+    (if (> i n)
+	syms
+	(iter (+ i 1) (cons (list i (expt 2 (- i 1))) syms))))
+  (iter 1 '()))
+
+(define (encode-symbol symbol tree)
+  (set! encode-symbol-count (+ encode-symbol-count 1))
+  (cond ((leaf? tree) '())
+	((found-symbol? symbol (left-branch tree))
+	 (cons 0 (encode-symbol symbol (left-branch tree))))
+	((found-symbol? symbol (right-branch tree))
+	 (cons 1 (encode-symbol symbol (right-branch tree))))
+	(else
+	 (error "Unable to find symbol -- ENCODE-SYMBOL" symbol))))
+
+(define (found-symbol? symbol branch)
+  (set! encode-symbol-count (+ encode-symbol-count 1))
+  (if (leaf? branch)
+      (eq? symbol (symbol-leaf branch))
+      (element-of-set? symbol (symbols branch))))
+(define (element-of-set? x set)
+  (set! encode-symbol-count (+ encode-symbol-count 1))
+  (cond ((null? set) false)
+	((equal? x (car set)) true)
+	(else (element-of-set? x (cdr set)))))
+
+(define encode-symbol-count 0)
+(define (count-encode-symbol symbol tree)
+  (set! encode-symbol-count 0)
+  (encode-symbol symbol tree)
+  (display encode-symbol-count) (newline))
+
+;;; This seems to put it closer to O(n) for even the least frequent bit...thought it would be higher.
+;; racket@> (count-encode-symbol 1 (generate-huffman-tree (build-symbols-ex-2.72 10000)))
+;; 29997
+;; racket@> (count-encode-symbol 1 (generate-huffman-tree (build-symbols-ex-2.72 10)))
+;; 27
+;; racket@> (count-encode-symbol 1 (generate-huffman-tree (build-symbols-ex-2.72 100)))
+;; 297
+;; racket@> (count-encode-symbol 1 (generate-huffman-tree (build-symbols-ex-2.72 1000)))
+;; 2997
+;; racket@> (count-encode-symbol 1 (generate-huffman-tree (build-symbols-ex-2.72 10000)))
+;; 29997
+
+;; I was also wrong about the most frequent symbol, that seems to O(1) because I am always searching the left
+;;; branch first. and my generate-huffman-tree always puts the most frequent symbol in the left branch of the
+;;; entry point.
