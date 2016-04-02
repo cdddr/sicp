@@ -803,7 +803,3 @@ false
 ;; 2997
 ;; racket@> (count-encode-symbol 1 (generate-huffman-tree (build-symbols-ex-2.72 10000)))
 ;; 29997
-
-;; I was also wrong about the most frequent symbol, that seems to O(1) because I am always searching the left
-;;; branch first. and my generate-huffman-tree always puts the most frequent symbol in the left branch of the
-;;; entry point.
