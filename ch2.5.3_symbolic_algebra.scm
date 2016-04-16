@@ -61,6 +61,9 @@
     (cond ((exact-integer? x) x)
 	  (else
 	   (inexact->exact (round x)))))
+  (define (reduce-integers n d)
+    (let ((g (gcd n d)))
+      (list (/ n g) (/ d g))))
 
   (put 'add '(scheme-number scheme-number) +)
   (put 'sub '(scheme-number scheme-number) -)
@@ -80,29 +83,32 @@
   (put 'square-root '(scheme-number) sqrt)
   (put 'arctan '(scheme-number) atan)
   (put 'arctan '(scheme-number scheme-number) atan)
+  (put 'greatest-common-divisor '(scheme-number scheme-number) gcd)
+  (put 'reduce '(scheme-number scheme-number) reduce-integers)
   'done)
 
 (define (install-rational-package)
   ;; internal procedures
   (define (numer x) (car x))
-  (define (denom x) (cdr x))
+  (define (denom x) (cadr x))
   (define (make-rat n d)
-    (let ((g (gcd n d)))
-      (cons (/ n g) (/ d g))))
-  (define (add-rat x y)
-    (make-rat (+ (* (numer x) (denom y))
-		 (* (numer y) (denom x)))
-	      (* (denom x) (denom y))))
-  (define (sub-rat x y)
-    (make-rat (- (* (numer x) (denom y))
-		 (* (numer y) (denom x)))))
-  (define (mul-rat x y)
-    (make-rat (* (numer x) (numer y))
-	      (* (denom x) (denom y))))
+    (reduce n d))
 
+
+  (define (add-rat x y)
+    (make-rat (add (mul (numer x) (denom y))
+		   (mul (numer y) (denom x)))
+	      (mul (denom x) (denom y))))
+  (define (sub-rat x y)
+    (make-rat (sub (mul (numer x) (denom y))
+		   (mul (numer y) (denom x)))))
+  (define (mul-rat x y)
+    (make-rat (mul (numer x) (numer y))
+	      (mul (denom x) (denom y))))
   (define (div-rat x y)
-    (make-rat (* (numer x) (denom y))
-	      (* (denom x) (numer y))))
+    (make-rat (mul (numer x) (denom y))
+	      (mul (denom x) (numer y))))
+
   (define (rat-equ? x y)
     (and (= (numer x) (numer y))
 	 (= (denom x) (denom y))))
@@ -308,7 +314,8 @@
 
 (define (drop x)
   (cond	((and (pair? x) (> (length x) 1)) 
-	  x)
+	 x)
+	((eq? (type-tag x) 'polynomial) x)
 	((not (type-tag x)) x)
 	((= (get-tower-level x) 1) x)
 	((equ? (raise (project x)) x)
@@ -322,7 +329,7 @@
       (if proc
 	  (if (or (eq? op 'raise) (eq? op 'project)) 
 	      (apply proc (map contents args))
-	      (drop (apply proc (map contents args))))
+	      (apply proc (map contents args)))
 	  (if (and (= (length args) 2) (not (eq? (car type-tags) (cadr type-tags)))) ;Exericise 2.81 c)
 	      (let ((a1 (car args))
 		    (a2 (cadr args)))
@@ -334,12 +341,14 @@
 
 ;; polynomial data structure - poly
 (define (install-polynomial-package)
-  ;;(define (make-poly variable term-list)
-  ;;	(cons variable term-list))
   (define (make-poly variable term-list)
-    (cons variable (if (pair? (car term-list))
-		       term-list
-		       (terms-dense->sparse term-list))))
+    (if (null? term-list)
+	(cons variable '((0 0)))
+	(cons variable term-list)))
+  ;; (define (make-poly variable term-list)
+  ;;   (cons variable (if (cons)
+  ;; 		       term-list
+  ;; 		       (terms-dense->sparse term-list))))
   (define (terms-dense->sparse term-list)
     (define (iter lst result)
       (if (null? lst)
@@ -353,14 +362,12 @@
   (define (raise p)
     p)
 
-  
   (define (add-poly p1 p2)
     (if (same-variable? (variable p1) (variable p2))
 	(make-poly (variable p1)
 		   (add-terms (term-list p1)
 			      (term-list p2)))
 	(error "Polys not in same var -- ADD-POLY" (list p1 p2))))
-
   (define (sub-poly p1 p2)
     (add-poly p1 (negate-poly p2)))
   (define (mul-poly p1 p2)
@@ -369,14 +376,12 @@
 		   (mul-terms (term-list p1)
 			      (term-list p2)))
 	(error "Polys not in same var -- MUL-POLY" (list p1 p2))))
-
   (define (div-poly p1 p2)
     (if (same-variable? (variable p1) (variable p2))
 	(map (lambda (L)
 	       (make-poly (variable p1) L))
 	     (div-terms (term-list p1) (term-list p2)))
-	(error "Polys not in the same var -- DIV-POLY" (list p1 p2))))
-  
+	(error "Polys not in the same var -- DIV-POLY" (list p1 p2))))  
   (define (negate-poly p)
     (make-poly (variable p)
 	       (map (lambda (term)
@@ -385,6 +390,16 @@
   (define (poly-=zero? p)
     (and (equ? (order (first-term (term-list p))) 0)
 	 (equ? (coeff (first-term (term-list p))) 0)))
+  (define (gcd-poly p1 p2)
+    (if (same-variable? (variable p1) (variable p2))
+	(make-poly (variable p1) (gcd-terms (term-list p1) (term-list p2)))
+	(error "Polys are not in the same var -- GCD-POLY" (list p1 p2))))
+  (define (reduce-poly p1 p2)
+    (if (same-variable? (variable p1) (variable p2))
+	(map (lambda (L)
+	       (make-poly (variable p1) L)) (reduce-terms (term-list p1) (term-list p2)))
+	(error "Polys are not in the same var -- REDUCE-POLY" (list p1 p2))))
+  
   (define (the-empty-termlist) '())
   (define (adjoin-term term term-list)
     (if (=zero? (coeff term))
@@ -463,6 +478,46 @@
 				  L2)))
 		  (list (adjoin-term (make-term new-o new-c) (car rest-of-result)) (cadr rest-of-result))))))))
   
+  (define (gcd-terms a b)
+    (if (empty-termlist? b)
+    	a
+    	(reduce-termlist (gcd-terms b (psuedoremainder-terms a b)))))
+  (define (remainder-terms a b)
+    (cadr (div-terms a b)))
+  (define (psuedoremainder-terms p q)
+    (let ((o1 (order (first-term p)))
+	  (o2 (order (first-term q)))
+	  (c  (coeff (first-term q))))
+      (cadr (div-terms (mul-terms (list (list 0 (expt c (+ 1 (- 4 3))))) p) q))))
+  
+  (define (reduce-termlist terms . factor)
+    (let ((orders (map (lambda (x) (order x)) terms))
+	  (coeffs (map (lambda (x) (coeff x)) terms)))
+      (let ((g (if (null? factor)
+		   (apply gcd coeffs)
+		   (car factor))))
+	(zip-order-coeff orders (reduce-coeffs coeffs g)))))
+  (define (reduce-coeffs coeffs factor)
+    (map (lambda (x) (div x factor)) coeffs))
+  (define (zip-order-coeff os cs)
+    (if (null?  os)
+	'()
+	(cons (list (car os) (car cs)) (zip-order-coeff (cdr os) (cdr cs)))))
+  (define (unzip-coeff terms)
+    (map (lambda (x) (coeff x)) terms))
+
+  (define (reduce-terms n d)
+    (let ((terms-gcd (gcd-terms n d)))
+      (let ((o1 (max (order (first-term n)) (order (first-term d))))
+	    (o2 (order (first-term terms-gcd)))
+	    (c (coeff (first-term terms-gcd))))
+	(let ((factor (expt c (+ 1 (- o1 o2)))))
+	  (let ((nn (car (div-terms (mul-terms (list (list 0 factor)) n) terms-gcd)))
+		(dd (car (div-terms (mul-terms (list (list 0 factor)) d) terms-gcd))))
+	    (let ((coeffs-gcd (apply gcd (append (unzip-coeff nn) (unzip-coeff dd)))))
+	      (list (reduce-termlist nn coeffs-gcd) (reduce-termlist dd coeffs-gcd))))))))
+  
+  
   (define (tag p) (attach-tag 'polynomial p))
   (put 'add '(polynomial polynomial)
        (lambda (p1 p2) (tag (add-poly p1 p2))))
@@ -498,6 +553,12 @@
   (put 'equ? '(polynomial polynomial) equ?-poly)
   (put 'project '(polynomial) project)
   (put 'raise '(polynomial) raise)
+  (put 'greatest-common-divisor '(polynomial polynomial)
+       (lambda (p1 p2) 
+	 (tag (gcd-poly p1 p2))))
+  (put 'reduce '(polynomial polynomial)
+       (lambda (p1 p2)
+	 (map tag (reduce-poly p1 p2))))
   'done)
 
 (define (make-polynomial var terms)
@@ -520,6 +581,8 @@
 (define (square-root x) (apply-generic 'square-root x))
 (define (arctan y x) (apply-generic 'arctan y x))  	
 (define (negate x) (apply-generic 'negate x))
+(define (greatest-common-divisor x y) (apply-generic 'greatest-common-divisor x y))
+(define (reduce x y) (apply-generic 'reduce x y))
 
 (install-scheme-number-package)
 (install-rational-package)
@@ -563,3 +626,73 @@
 
 ;; Exercise 2.91 - Division of Polynomials
 
+;; racket@> (div (make-polynomial 'x '((5 1) (0 -1))) (make-polynomial 'x '((2 1) (0 -1))))
+;; '((polynomial x (3 1) (1 1)) (polynomial x (1 1) (0 -1)))
+
+;; Exercise 2.92 - [TODO - qdbp_] Skipping for now
+
+
+;; Exercise 2.93
+;;> (add rf rf)
+;;'(rational
+;;  (polynomial x (5 2) (3 2) (2 2) (0 2))
+;;  (polynomial x (4 1) (2 2) (0 1)))
+
+;;; Exercise 2.94 - Changes Above for greatest-common-divisor
+
+;; racket@> (greatest-common-divisor p1 p2)
+;; '(polynomial x (2 -1) (1 1))
+;;; Checks out with a hand worked long division and recursion of gcd.
+
+;;; Exercise 2.95 - 
+;; racket@> (define p1 (make-polynomial 'x '((2 1) (1 -2) (0 1))))
+;; racket@> (define p2 (make-polynomial 'x '((2 11) (0 7))))
+;; racket@> (define p3 (make-polynomial 'x '((1 13) (0 5))))
+;; racket@> (define q1 (mul p1 p2))
+;; racket@> (define q2 (mul p1 p3))
+;; racket@> q1
+;; '(polynomial x (4 11) (3 -22) (2 18) (1 -14) (0 7))
+;; racket@> q2
+;; '(polynomial x (3 13) (2 -21) (1 3) (0 5))
+;; racket@> (greatest-common-divisor q1 q2)
+;; '(polynomial x (2 1458/169) (1 -2916/169) (0 1458/169))
+;; The division algorithm introduces some unreducible divisions that get fixed in the first term, but cause
+;; problems when it is multiplied through in the remainder step.
+
+;; racket@> (greatest-common-divisor q1 q2)
+;; gcd-terms ((4 11) (3 -22) (2 18) (1 -14) (0 7)),((3 13) (2 -21) (1 3) (0 5))
+;; gcd-terms ((3 13) (2 -21) (1 3) (0 5)),((2 1458/169) (1 -2916/169) (0 1458/169))
+;; gcd-terms ((2 1458/169) (1 -2916/169) (0 1458/169)),()
+;; '(polynomial x (2 1458/169) (1 -2916/169) (0 1458/169))
+
+;; Exercise 2.96 - pseudoremainder implemented above.
+;; a)
+;; racket@> (greatest-common-divisor q1 q2)
+;; '(polynomial x (2 1458) (1 -2916) (0 1458))
+;; b)
+;; racket@> (greatest-common-divisor q1 q2)
+;; '(polynomial x (2 1) (1 -2) (0 1))
+
+;;; Exercise 2.97
+;; (define p1 (make-polynomial 'x '((1 1) (0 1))))
+;; (define p2 (make-polynomial 'x '((3 1) (0 -1))))
+;; (define p3 (make-polynomial 'x '((1 1))))
+;; (define p4 (make-polynomial 'x '((2 1) (0 -1))))
+
+;; (define rf1 (make-rational p1 p2))
+;; (define rf2 (make-rational p3 p4))
+
+;; racket@> rf1
+;; '(rational (polynomial x (1 -1) (0 -1)) (polynomial x (3 -1) (0 1)))
+;; racket@> rf2
+;; '(rational (polynomial x (1 1)) (polynomial x (2 1) (0 -1)))
+;; racket@> (add rf1 rf2)
+;; '(rational
+;;   (polynomial x (3 -1) (2 -2) (1 -3) (0 -1))
+;;   (polynomial x (4 -1) (3 -1) (1 1) (0 1)))
+;; racket@> (add rf3 rf4)
+;; '(rational (polynomial x (1 1) (0 1)) (polynomial x (2 1) (1 -1)))
+;; racket@> rf3
+;; '(rational (polynomial x (0 1)) (polynomial x (2 1) (1 -1)))
+;; racket@> rf4
+;; '(rational (polynomial x (0 1)) (polynomial x (1 1) (0 -1)))
