@@ -1183,7 +1183,8 @@
     (display "Probe: ")
     (display name)
     (display " = ")
-    (display value))
+    (display value)
+    (newline))
   (define (process-new-value)
     (print-probe (get-value connector)))
   (define (process-forget-value)
@@ -1270,3 +1271,289 @@
 ;; Probe: Fahrenheit temp = 212
 ;; Probe: Celsius temp = 100done
 
+;;; Exercise 3.33
+(define (averager a b c)
+  (let ((u (make-connector))
+        (v (make-connector)))
+    (constant 2 v)
+    (multiplier c v u)
+    (adder a b u)))
+
+;; #;765> (let ((a (make-connector))
+;;              (b (make-connector)) (c (make-connector)))
+;;          (averager a b c)
+;;          (probe "Average : " c) (set-value! a 5 'user) (set-value! b 10 'user))
+
+;; Probe: Average :  = 7.5
+;; done
+
+;;; Exercise 3.34
+(define (squarer a b)
+  (multiplier a a b))
+
+;;; Should work from a -> b, but setting b will not give the square root properly.
+;; #;808> (let ((a (make-connector))
+;;              (b (make-connector)))
+;;          (probe "a : " a) (probe "b : " b) (squarer a b) (set-value! a 2 'user))
+
+;; Probe: b :  = 4
+
+;; Probe: a :  = 2
+;;; Setting b does not work because the product has a value, but the two inputs have no value so no condition is satisfied.
+
+;;; Exercise 3.35
+(define (squarer a b)
+  (define (process-new-value)
+    (if (has-value? b)
+        (if (< (get-value b) 0)
+            (error "square less than 0 -- SQUARER" (get-value b))
+            (set-value! a (sqrt (get-value b)) me))
+        (set-value! b (* (get-value a) (get-value a)) me)))
+  (define (process-forget-value)
+    (forget-value! a me)
+    (forget-value! b me)
+    (process-new-value))
+  (define (me request)
+    (cond ((eq? request 'I-have-a-value)
+           (process-new-value))
+          ((eq? request 'I-lost-my-value)
+           (process-forget-value))
+          (else
+           (error "Unknown request -- SQUARER" request))))
+  (connect a me)
+  (connect b me)
+  me)
+
+;; #;1017> (let ((a (make-connector))
+;;              (b (make-connector)))
+;;          (probe "a : " a) (probe "b : " b) (squarer a b) (set-value! b 16 'user))
+
+;; Probe: a :  = 4.0
+
+;; Probe: b :  = 16
+;; done
+;; #;1033> (let ((a (make-connector))
+;;              (b (make-connector)))
+;;          (probe "a : " a) (probe "b : " b) (squarer a b) (set-value! b 15 'user))
+
+;; Probe: a :  = 3.87298334620742
+
+;; Probe: b :  = 15
+;; done
+;; #;1038> (let ((a (make-connector))
+;;              (b (make-connector)))
+;;          (probe "a : " a) (probe "b : " b) (squarer a b) (set-value! a (sqrt 15) 'user))
+
+;; Probe: b :  = 15.0
+
+;; Probe: a :  = 3.87298334620742
+;; done
+
+(define (celsius-fahrenheit-converter x)
+  (c+ (c* (c/ (cv 9) (cv 5))
+          x)
+      (cv 32)))
+
+(define (c+ x y)
+  (let ((z (make-connector)))
+    (adder x y z)
+    z))
+
+(define (c- x y)
+  (let ((z (make-connector)))
+    (adder (y z x))
+    z))
+(define (c* x y)
+  (let ((z (make-connector)))
+    (multiplier x y z)
+    z))
+(define (c/ x y)
+  (let ((z (make-connector)))
+    (multiplier y z x)
+    z))
+(define (cv x)
+  (let ((z (make-connector)))
+    (constant x z)
+    z))
+
+;; (define C (make-connector))
+;; (define F (celsius-fahrenheit-converter C))
+;; (probe "Celsisus : " C)
+;; (probe "Fahrenheit : " F)
+;; #;1218> (set-value! C 100 'user)
+
+;; Probe: Celsisus :  = 100
+
+;; Probe: Fahrenheit :  = 212.0
+;; done
+
+;;; The complexities introduced by assignment become even more problematic in the presence of concurrency.
+;;; Indeterminancy in the order of events can pose serious problems in the design of concurrent systems.
+;;; Footnote 36 : cache-coherence protocols are required to ensure various processors maintain a consistent view of memory contents.
+
+;;; ensure that a concurrent system produces the same result "as if" the processes had run concurrently.
+;;; concurrent programs are inherently non-deterministic.
+
+;;; A more practical approach to concurrent systems is to devise general mechanisms that allow us to constrain the interleaving of concurrent processes so that we can be sure the program behavior is correct.
+
+;;; Serializer - Using serialization to control access to shared variables.
+;; (define (parallel-execute . thunks)
+;;   (let ((threads (map thunk->thread thunks)))
+;;     (lambda () (for-each thread-terminate! threads))))
+
+;; (define (thunk->thread thunk)
+;;   (let ((thread (make-thread thunk))) (thread-start! thread) thread))
+
+;; (define x 10)
+;; (parallel-execute (lambda () (set! x (* x x)))
+;;                   (lambda () (set! x (+ x 1))))
+
+;;; Exercises 3.36-3.46 in Noteboook.
+
+;;; Exercise 3.47 - Semaphore of size n
+;;; Even though a semaphore is a generalization of a mutex, I think we still need a mutex to serialize access to the
+;;; count. Otherwise n threads could all acquire at the same time and our final count would be (0 + 1) and any
+;;; subsequent threads would be able to exceed the n of the semaphore.
+;;; a) In terms of mutexes.
+(define (make-semaphore n)
+  (let ((lock (make-mutex))
+        (i 0))
+    (define (the-semaphore m)
+      (cond ((eq? m 'acquire)
+             (lock 'acquire)
+             (if (>= i n)
+                 (begin
+                   (lock 'release)
+                   (the-semaphore 'acquire))
+                 (begin
+                   (set! i (+ i 1))
+                   (lock 'release))))
+            ((eq? m 'release)
+             (lock 'acquire)
+             (set! i (- i 1))
+             (lock 'release))))
+    the-semaphore))
+
+;;; If test-and-set! is done atomically then I don't think we need to acquire a lock and serialize access to the count.
+;;; b) atomically
+(define (make-semaphore n)
+  (let ((cell (list 0)))
+    (define (test-and-set! cell)
+      (without-interrupts
+       (lambda ()
+         (if (< (car cell) n)
+             (begin
+               (set-car! cell (+ (car cell) 1))
+               #f)
+             #t))))
+    (define (clear! cell)
+      (without-interrupts
+       (lambda ()
+         (set-car! cell (- (car cell) 1)))))
+    (define (the-semaphore m)
+      (cond ((eq? m 'acquire)
+             (if (test-and-set! cell)
+                 (the-semaphore 'acquire)))
+            ((eq? m 'release) (clear cell))))
+    the-semaphore))
+
+;;; Exercises 3.48 - 3.49 in Noteboook.
+
+;;; Streams 3.5
+;; (define (cons-stream a b)
+;;   (cons a (delay b)))
+;; (define (stream-car stream)
+;;   (car stream))
+;; (define (stream-cdr stream)
+;;   (force (cdr stream)))
+
+;; (use streams)
+
+(define (stream-enumerate-interval low high)
+  (if (> low high)
+      the-empty-stream
+      (cons-stream
+       low
+       (stream-enumerate-interval (+ low 1) high))))
+
+(define (stream-filter pred stream)
+  (cond ((stream-null? stream) the-empty-stream)
+        ((pred (stream-car stream))
+         (cons-stream (stream-car stream)
+                      (stream-filter pred (stream-cdr stream))))
+        (else (stream-filter pred (stream-cdr stream)))))
+(define (stream-ref stream n)
+  (if (= n 0)
+      (stream-car stream)
+      (stream-ref (stream-cdr stream) (- n 1))))
+
+;; (define (force delayed-object)
+;;   (delayed-object))
+
+;; (define (memo-proc proc)
+;;   (let ((already-run? #f) (result #f))
+;;     (lambda ()
+;;       (if (not already-run?)
+;;           (begin
+;;             (set! result (proc))
+;;             (set! already-run? #t)
+;;             result)
+;;           result))))
+
+;; (define (delay p)
+;;   (memo-proc (lambda ()
+;;                (p))))
+
+;;; Exercise 3.50
+(define (stream-map proc . argstreams)
+  (if (stream-null? (car argstreams))
+      the-empty-stream
+      (cons-stream
+       (begin
+         (apply proc (map stream-car argstreams)))
+        (apply stream-map
+               (cons proc (map stream-cdr argstreams))))))
+
+;;; Exercise 3.51
+(define (show x)
+  (display x) (newline)
+  x)
+
+(define x (stream-map show (stream-enumerate-interval 0 10)))
+
+;;; I was getting different behavior in chicken than what I found online. Using mit-scheme now. Probable should have
+;;; been from the start
+;; 1 ]=> (stream-ref x 5)
+;; 1
+;; 2
+;; 3
+;; 4
+;; 5
+;; ;Value: 5
+
+;; 1 ]=> (stream-ref x 7)
+;; 6
+;; 7
+;; ;Value: 7
+
+(define sum 0)
+(define (accum x)
+  (set! sum (+ x sum))
+  sum)
+
+(define seq (stream-map accum (stream-enumerate-interval 1 20)))
+(define y (stream-filter even? seq))
+(define z (stream-filter (lambda (x) (= (remainder x 5) 0))
+                         seq))
+
+(define (stream-for-each proc s)
+  (if (stream-null? s)
+      'done
+      (begin (proc (stream-car s))
+             (stream-for-each proc (stream-cdr s)))))
+
+(define (display-stream s)
+  (stream-for-each display-line s))
+(define (display-line x)
+  (newline)
+  (display x))
