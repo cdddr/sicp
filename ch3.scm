@@ -1557,3 +1557,128 @@
 (define (display-line x)
   (newline)
   (display x))
+
+;;; Section 3.5.2 Infinite Streams
+(define (integers-starting-from n)
+  (cons-stream n (integers-starting-from (+ n 1))))
+(define integers (integers-starting-from 1))
+(define (divisible? x y) (= (remainder x y) 0))
+(define no-sevens
+  (stream-filter (lambda (x) (not (divisible? x 7)))
+                 integers))
+(define (fibgen a b)
+  (cons-stream a (fibgen b (+ a b))))
+(define fibs (fibgen 0 1))
+
+(define (sieve stream)
+  (cons-stream
+   (stream-car stream)
+   (sieve (stream-filter
+           (lambda (x)
+             (not (divisible? x (stream-car stream))))
+           (stream-cdr stream)))))
+(define primes (sieve (integers-starting-from 2)))
+
+(define ones (cons-stream 1 ones))
+
+(define (add-streams s1 s2)
+  (stream-map + s1 s2))
+
+(define integers (cons-stream 1 (add-streams ones integers)))
+
+(define fibs
+  (cons-stream 0
+               (cons-stream 1
+                            (add-streams (stream-cdr fibs)
+                                         fibs))))
+
+(define (scale-stream stream factor)
+  (stream-map (lambda (x) (* x factor)) stream))
+
+(define double (cons-stream 1 (scale-stream double 2)))
+
+(define primes
+  (cons-stream
+   2
+   (stream-filter prime? (integers-starting-from 3))))
+
+(define (prime? n)
+  (define (iter ps)
+    (cond ((> (square (stream-car ps)) n) true)
+          ((divisible? n (stream-car ps)) false)
+          (else (iter (stream-cdr ps)))))
+  (iter primes))
+
+(define (mul-streams s1 s2)
+  (stream-map * s1 s2))
+
+;;; Need to use (stream-cdr integers) to get nth element to be n+1!
+(define factorials (cons-stream 1 (mul-streams factorials (stream-cdr integers))))
+;;1 ]=> (stream-ref factorials 0)
+
+
+;; ;Value: 1
+
+;; 1 ]=> (stream-ref factorials 1)
+
+;; ;Value: 2
+
+;; 1 ]=> (stream-ref factorials 2)
+
+;; ;Value: 6
+
+;; 1 ]=> (stream-ref factorials 3)
+
+;; ;Value: 24
+
+;; 1 ]=> (stream-ref factorials 4)
+
+;; ;Value: 120
+
+;; 1 ]=> (stream-ref factorials 5)
+
+;; ;Value: 720
+
+;; Exercise 3.55
+(define (partial-sums s)
+  (define (iter p s)
+    (cons-stream p (stream-map (lambda (x) (+ p x)) (partial-sums s))))
+  (iter (stream-car s) (stream-cdr s)))
+
+;; above is kind of gross, this is very elegant but kind of hard to grasp on the first go-round.
+(define (partial-sums s)
+  (add-streams s (cons-stream 0 (partial-sums s))))
+  
+;;1 ]=> (stream-ref (partial-sums integers) 1)
+;;
+;;;Value: 3
+;;
+;;1 ]=> (stream-ref (partial-sums integers) 2)
+;;
+;;;Value: 6
+;;
+;;1 ]=> (stream-ref (partial-sums integers) 3)
+;;
+;;;Value: 10
+;;
+;;1 ]=> (stream-ref (partial-sums integers) 4)
+;;
+;;;Value: 15
+
+;; Exercise 3.56
+(define (merge s1 s2)
+  (cond ((stream-null? s1) s2)
+        ((stream-null? s2) s1)
+        (else
+          (let ((s1car (stream-car s1))
+                (s2car (stream-car s2)))
+            (cond ((< s1car s2car)
+            	   (cons-stream s1car (merge (stream-cdr s1) s2)))
+            	  ((> s1car s2car)
+            	   (cons-stream s2car (merge s1 (stream-cdr s2))))
+            	  (else
+            	   (cons-stream s1car
+            	   				(merge (stream-cdr s1)
+            	   					   (stream-cdr s2)))))))))
+
+(define S (cons-stream 1 (merge (scale-stream S 2) (merge (scale-stream S 3) (scale-stream S 5)))))
