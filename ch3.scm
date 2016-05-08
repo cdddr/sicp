@@ -1511,8 +1511,8 @@
       (cons-stream
        (begin
          (apply proc (map stream-car argstreams)))
-        (apply stream-map
-               (cons proc (map stream-cdr argstreams))))))
+       (apply stream-map
+              (cons proc (map stream-cdr argstreams))))))
 
 ;;; Exercise 3.51
 (define (show x)
@@ -1648,7 +1648,7 @@
 ;; above is kind of gross, this is very elegant but kind of hard to grasp on the first go-round.
 (define (partial-sums s)
   (add-streams s (cons-stream 0 (partial-sums s))))
-  
+
 ;;1 ]=> (stream-ref (partial-sums integers) 1)
 ;;
 ;;;Value: 3
@@ -1670,15 +1670,51 @@
   (cond ((stream-null? s1) s2)
         ((stream-null? s2) s1)
         (else
-          (let ((s1car (stream-car s1))
-                (s2car (stream-car s2)))
-            (cond ((< s1car s2car)
-            	   (cons-stream s1car (merge (stream-cdr s1) s2)))
-            	  ((> s1car s2car)
-            	   (cons-stream s2car (merge s1 (stream-cdr s2))))
-            	  (else
-            	   (cons-stream s1car
-            	   				(merge (stream-cdr s1)
-            	   					   (stream-cdr s2)))))))))
+         (let ((s1car (stream-car s1))
+               (s2car (stream-car s2)))
+           (cond ((< s1car s2car)
+                  (cons-stream s1car (merge (stream-cdr s1) s2)))
+                 ((> s1car s2car)
+                  (cons-stream s2car (merge s1 (stream-cdr s2))))
+                 (else
+                  (cons-stream s1car
+                               (merge (stream-cdr s1)
+                                      (stream-cdr s2)))))))))
 
 (define S (cons-stream 1 (merge (scale-stream S 2) (merge (scale-stream S 3) (scale-stream S 5)))))
+
+
+;;; Exercise 3.58 - In Notebook
+
+;;; Exercise 3.59
+(define (div-streams s1 s2)
+  (stream-map / s1 s2))
+
+(define (integrate-series as)
+  (mul-streams (div-streams ones integers) as))
+
+(define exp-series
+  (cons-stream 1 (integrate-series exp-series)))
+
+(define cosine-series
+  (cons-stream 1 (integrate-series (scale-stream sine-series -1))))
+
+(define sine-series
+  (cons-stream 0 (integrate-series cosine-series)))
+
+;;; This is a freaking elegant representation.
+
+;;; Exercise 3.60
+(define (add-series s1 s2)
+  (add-streams s1 s2))
+(define (mul-series s1 s2)
+  (cons-stream (* (stream-car s1) (stream-car s2))
+               (add-streams (mul-series (cons-stream 0 (stream-cdr s1)) s2)
+                            (mul-series s1 (cons-stream 0 (stream-cdr s2))))))
+
+;;; This seems to work but seems pretty slow.
+(define (mul-series s1 s2)
+  (cons-stream (* (stream-car s1) (stream-car s2))
+               (add-streams (scale-stream (stream-cdr s2) (stream-car s1))
+                            (mul-series (stream-cdr s1) s2))))
+;;; This is much faster.
