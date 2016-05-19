@@ -1718,3 +1718,361 @@
                (add-streams (scale-stream (stream-cdr s2) (stream-car s1))
                             (mul-series (stream-cdr s1) s2))))
 ;;; This is much faster.
+;;; This exercise took me longer than I would like to admit.
+
+;;; Exercise 3.61
+(define (invert-unit-series s)
+  (cons-stream 1
+               (scale-stream (mul-series (stream-cdr s) (invert-unit-series s)) -1)))
+
+;;; Exercise 3.62
+(define (div-series s1 s2)
+  (if (eq? (stream-car s2) 0)
+      (error "Divisor has a constant term of zero -- DIV-SERIES" (list s1 s2))
+      (mul-series s1 (scale-stream (invert-unit-series s2) (stream-car s2)))))
+      
+(define tangent-series (div-series sine-series cosine-series))
+
+;;1 ]=> (display-stream tangent-series)
+;;
+;;0
+;;1
+;;0
+;;1/3
+;;0
+;;2/15
+;;0
+;;17/315
+;;0
+;;62/2835
+;;0
+
+
+;;; Section 3.5.3 - Exploiting the Stream Paradigm
+;;; Represent state as a "timeless" stream of values rather than as a set of variables to be updated.
+(define (average a b)
+  (/ (+ a b) 2))
+  
+(define (sqrt-improve guess x)
+  (average guess (/ x guess)))
+
+(define (sqrt-stream x)
+  (define guesses
+    (cons-stream 1.0
+                 (stream-map (lambda (guess)
+                 			   (sqrt-improve guess x))
+                 			 guesses)))
+  guesses)
+  
+(define (pi-summands n)
+  (cons-stream (/ 1.0 n)
+  			   (stream-map - (pi-summands (+ n 2)))))
+  			   
+(define pi-stream
+  (scale-stream (partial-sums (pi-summands 1)) 4))
+  
+(define (euler-transform s)
+  (let ((s0 (stream-ref s 0))
+  	    (s1 (stream-ref s 1))
+  	    (s2 (stream-ref s 2)))
+    (cons-stream (- s2 (/ (square (- s2 s1))
+    				      (+ s0 (* -2 s1) s2)))
+    		     (euler-transform (stream-cdr s)))))
+    		     
+    		     
+(define (make-tableau transform s)
+  (cons-stream s
+               (make-tableau transform
+                             (transform s))))
+                             
+(define (accelerated-sequence transform s)
+  (stream-map stream-car
+  			  (make-tableau transform s)))
+  			  
+  			  
+;; Exercise 3.63 -- In Notebook.
+;;(define (sqrt-stream x)
+;;  (cons-stream 1.0
+;;  			   (stream-map (lambda (guess) (sqrt-improve guess x)) (sqrt-stream x))))
+
+  			   
+;; Exercise 3.64
+(define (stream-limit s d)
+  (let ((s1 (stream-car s))
+  		(s2 (stream-car (stream-cdr s))))
+    (if (<= (abs (- s1 s2)) d)
+    	s2
+    	(stream-limit (stream-cdr s) d))))
+    	
+;;1 ]=> (stream-limit (accelerated-sequence euler-transform pi-stream) 0.00001)
+;;
+;;;Value: 3.1415927140337785
+;;
+;;1 ]=> (stream-limit (accelerated-sequence euler-transform pi-stream) 0.0000001)
+;;
+;;;Value: 3.1415926539752927
+;;
+;;1 ]=> (stream-limit (accelerated-sequence euler-transform pi-stream) 0.000000001)
+;;
+;;;Value: 3.1415926535911765
+
+;; Exercise 3.65
+(define (ln-summands n)
+  (cons-stream (/ 1.0 n)
+    (stream-map - (ln-summands (+ n 1)))))
+    
+(define ln-stream
+  (partial-sums (ln-summands 1)))
+
+;;; ln-stream hits the recursion limit for 6 sig digits.
+;;; euler-transform converges much quicker
+;;; accelerated transform converges the quickest
+
+(define (interleave s1 s2)
+  (if (stream-null? s1)
+      s2
+      (cons-stream (stream-car s1)
+                   (interleave s2 (stream-cdr s1)))))
+
+(define (pairs s t)
+  (cons-stream
+   (list (stream-car s) (stream-car t))
+   (interleave
+    (stream-map (lambda (x) (list (stream-car s) x))
+                (stream-cdr t))
+    (pairs (stream-cdr s) (stream-cdr t)))))
+
+;;; Exercise 3.66 - In Notebook.
+
+;;; Exercise 3.67
+;; (define (pairs s t)
+;;   (cons-stream
+;;    (list (stream-car s) (stream-car t))
+;;    (interleave
+;;     (stream-map (lambda (x) (list (stream-car s) x))
+;;                 (stream-cdr t))
+;;     (pairs (stream-cdr s) t))))
+
+;; (define (pairs s t) 
+;;   (cons-stream
+;;    (list (stream-car s) (stream-car t))
+;;    (interleave
+;;     (stream-map (lambda (x) 
+;;                   (list (stream-car s) x))
+;;                 (stream-cdr t))
+;;     (interleave 
+;;      (stream-map (lambda (x) 
+;;                   (list x (stream-car t)))
+;;                  (stream-cdr s))
+;;      (pairs (stream-cdr s) (stream-cdr t))))))
+
+;;; Exercise 3.68 - In Notebook. Doesn't work because pairs is evaluated over and over and is never delayed.
+
+;;; Exercise 3.69
+(define (triples s t u)
+  (cons-stream
+   (list (stream-car s) (stream-car t) (stream-car u))
+   (interleave
+    (stream-map (lambda (x) (cons (stream-car s) x))
+                (stream-cdr (pairs t u)))
+    (triples (stream-cdr s) (stream-cdr t) (stream-cdr u)))))
+
+(define pythag
+  (stream-filter (lambda (x)
+                   (= (+ (square (car x)) (square (cadr x)))
+                      (square (caddr x))))
+                 (triples integers integers integers)))
+
+;;; works but it aint pretty
+;; 1 ]=> (display-stream pythag)
+
+;; (3 4 5)
+;; (6 8 10)
+;; (5 12 13)
+;; (9 12 15)
+;; (8 15 17)
+;; (12 16 20)
+;; ;Aborting!: out of memory
+;; ;GC #97: took:   0.27  (48%) CPU time,   0.28  (50%) real time; free: 4184
+;; ;GC #98: took:   0.28 (100%) CPU time,   0.28 (100%) real time; free: 4378
+;; ;GC #99: took:   0.27 (100%) CPU time,   0.28 (100%) real time; free: 4378
+
+;;; Exercise 3.70
+;;; The trick here is turn turn merge-weighted into a cross  between merge and
+;;; interleave.
+(define (merge-weighted s1 s2 weight)
+  (cond ((stream-null? s1) s2)
+        ((stream-null? s2) s1)
+        (else
+         (let ((p1 (stream-car s1))
+               (p2 (stream-car s2)))
+           (let ((w1 (weight p1))
+                 (w2 (weight p2)))
+             (cond ((< w1 w2)
+                    (cons-stream p1 (merge-weighted (stream-cdr s1) s2 weight)))
+                   (else
+                    (cons-stream p2
+                                 (merge-weighted s1
+                                                 (stream-cdr s2)
+                                                 weight)))))))))
+
+(define (weighted-pairs s t weight)
+  (cons-stream
+   (list (stream-car s) (stream-car t))
+   (merge-weighted
+    (stream-map (lambda (x) (list (stream-car s) x))
+                (stream-cdr t))
+    (weighted-pairs (stream-cdr s) (stream-cdr t) weight)
+    weight)))
+
+;; 1 ]=> (display-stream (weighted-pairs integers integers (lambda (pair) (+ (car pair) (cadr pair)))))
+
+;; (1 1)
+;; (1 2)
+;; (2 2)
+;; (1 3)
+;; (2 3)
+;; (1 4)
+;; (3 3)
+;; (2 4)
+;; (1 5)
+;; (3 4)
+;; (2 5)
+;; (1 6)
+;; (4 4)
+;; (3 5)
+;; (2 6)
+;; (1 7)
+;; (4 5)
+;; (3 6)
+;; (2 7)
+;; (1 8)
+;; (5 5)
+;; (4 6)
+;; (3 7)
+;; (2 8)
+;; (1 9)
+;; (5 6)
+;; (4 7)
+;; (3 8)
+;; (2 9)
+;; (1 10)
+;; (6 6)
+;; (5 7)
+;; (4 8)
+;; (3 9)
+;; (2 10)
+;; (1 11)
+
+;;; b)
+;; (define integers-no235 (stream-filter (lambda (x)
+;;                                         (and (not (divisible? x 2))
+;;                                              (not (divisible? x 3))
+;;                                              (not (divisible? x 5)))) integers))
+;; (display-stream (weighted-pairs integers-no235 integers-no235 (lambda (p)
+;;                                                                 (let ((i (car p))
+;;                                                                       (j (cadr p)))
+;;                                                                   (+ (* 2 i)
+;;                                                                      (* 3 j)
+;;                                                                      (* 5 i j))))))
+
+;;  ]=> (display-stream (weighted-pairs integers-no235 integers-no235 (lambda (p)
+;;                                                                 (let ((i (car p))
+;;                                                                       (j (cadr p)))
+;;                                                                   (+ (* 2 i)
+;;                                                                      (* 3 j)
+;;                                                                      (* 5 i j))))))
+
+;; (1 1)
+;; (1 7)
+;; (1 11)
+;; (1 13)
+;; (1 17)
+;; (1 19)
+;; (1 23)
+;; (1 29)
+;; (1 31)
+;; (7 7)
+;; (1 37)
+;; (1 41)
+;; (1 43)
+;; (1 47)
+;; (1 49)
+;; (1 53)
+;; (7 11)
+;; (1 59)
+;; (1 61)
+;; (7 13)
+;; (1 67)
+;; (1 71)
+;; (1 73)
+;; (1 77)
+;; (1 79)
+;; (11 11)
+;; (7 17)
+;; (1 83)
+;; (1 89)
+;; (1 91)
+;; (7 19)
+;; (11 13)
+                                
+
+
+;;; Exercise 3.71 - Ramanujan Numbers
+;;; Numbers that can be expressed as the sum of two cubes in more than one way.
+(define (ramanujan-weight p)
+  (+ (expt (car p) 3)
+     (expt (cadr p) 3)))
+
+(define sum-cubes
+  (weighted-pairs integers integers ramanujan-weight))
+
+(define (ramanujans s1 s2)
+  (let ((w1 (ramanujan-weight (stream-car s1)))
+        (w2 (ramanujan-weight (stream-car s2))))
+    (if (= w1 w2)
+        (cons-stream
+         w1
+         (ramanujans (stream-cdr s1) (stream-cdr s2)))
+        (ramanujans (stream-cdr s1) (stream-cdr s2)))))
+
+;; 1 ]=> (display-stream (ramanujans sum-cubes (stream-cdr sum-cubes)))
+
+;; 1729
+;; 4104
+;; 13832
+;; 20683
+;; 32832
+;; 39312
+
+;;; Exercise 3.72 - Numbers that can be written as the sum of two squares in three different ways
+(define (ex3.72-weight p)
+  (+ (expt (car p) 2)
+     (expt (cadr p) 2)))
+
+(define sum-of-squares
+  (weighted-pairs integers integers ex3.72-weight))
+
+(define (ex3.72-search s1 s2 s3)
+  (let ((p1 (stream-car s1))
+        (p2 (stream-car s2))
+        (p3 (stream-car s3)))
+    (let ((w1 (ex3.72-weight p1))
+          (w2 (ex3.72-weight p2))
+          (w3 (ex3.72-weight p3)))
+      (if (= w1 w2 w3)
+          (cons-stream
+           (list w1 p1 p2 p3)
+           (ex3.72-search (stream-cdr s1) (stream-cdr s2) (stream-cdr s3)))
+          (ex3.72-search (stream-cdr s1) (stream-cdr s2) (stream-cdr s3))))))
+
+(define ex3.72-numbers
+  (ex3.72-search sum-of-squares (stream-cdr sum-of-squares) (stream-cdr (stream-cdr sum-of-squares))))
+
+;; (325 (10 15) (6 17) (1 18))
+;; (425 (13 16) (8 19) (5 20))
+;; (650 (17 19) (11 23) (5 25))
+;; (725 (14 23) (10 25) (7 26))
+;; (845 (19 22) (13 26) (2 29))
+;; (850 (15 25) (11 27) (3 29))
+;; (925 (21 22) (14 27) (5 30))
