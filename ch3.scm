@@ -2076,3 +2076,95 @@
 ;; (845 (19 22) (13 26) (2 29))
 ;; (850 (15 25) (11 27) (3 29))
 ;; (925 (21 22) (14 27) (5 30))
+
+
+(define (integral integrand initial-value dt)
+  (define int
+    (cons-stream initial-value
+                 (add-streams (scale-stream integrand dt)
+                              int)))
+  int)
+
+;;; Exercise 3.73
+(define (RC R C dt)
+  (lambda (i v0)
+    (add-streams (scale-stream i R)
+                 (scale-stream (integral i v0 dt)
+                               (/ 1 C)))))
+
+
+;;; Exercise 3.74
+(define (list-to-lazy lst)
+  (if (null? lst)
+      the-empty-stream
+      (begin
+        (cons-stream
+         (car lst)
+         (list-to-lazy (cdr lst))))))
+
+(define sense-data (list-to-lazy (list 1 2 1.5 1 0.5 -0.1 -2 -3 -2 -0.5 0.2 3 4)))
+
+(define (sign-change-detector a b)
+  (cond ((and (< b 0) (> a 0)) 1)
+        ((and (< a 0) (> b 0)) -1)
+        (else
+         0)))
+(define (make-zero-crossings input-stream last-value)
+  (cons-stream
+   (sign-change-detector (stream-car input-stream) last-value)
+   (make-zero-crossings (stream-cdr input-stream) (stream-car input-stream))))
+
+(define zero-crossings (make-zero-crossings sense-data 0))
+
+(define zero-crossings
+  (stream-map sign-change-detector sense-data (cons-stream 0 sense-data)))
+
+;; ;;; Exercise 3.75
+(define (make-zero-crossings input-stream last-value last-avg)
+  (let ((avpt (/ (+ (stream-car input-stream) last-value) 2)))
+    (newline) (display "avpt : ") (display  (exact->inexact avpt)) (newline)
+    (cons-stream (sign-change-detector avpt last-avg)
+                 (make-zero-crossings (stream-cdr input-stream)
+                                      (stream-car input-stream)
+                                      avpt))))
+(define zero-crossings (make-zero-crossings sense-data 0 0))
+
+;;; Pretty sure the error is passing avpt as 'last-value'. Instead of taking the average of the stream values,
+;;; the avpt binding is taking the average of the current point with respect to the last average point
+
+;; 0 1  2  1.5   1   0.5   -0.1    -2 -3 -2 -0.5 0.2 3 4
+;;  0.5 1.25 1.375                        Louis Reasoner's method
+;;  0.5 1.5 1.75 1.25  .75  .2            Correct Averaging
+
+
+;;; Exercise 3.76 - Smooth Function
+(define (average n m)
+  (/ (+ n m) 2))
+(define (smooth s func)
+  (let ((s1 (stream-car s))
+        (s2 (stream-car (stream-cdr s))))
+    (cons-stream
+     (func s1 s2)
+     (smooth (stream-cdr s) func))))
+
+(define (make-zero-crossings input-stream last-value)
+  (cons-stream
+   (sign-change-detector (stream-car input-stream) last-value)
+   (make-zero-crossings (stream-cdr input-stream) (stream-car input-stream))))
+
+(define zero-crossings (make-zero-crossings (smooth sense-data average) 0))
+
+;; 1 ]=> (display-stream zero-crossings)
+
+;; 0
+;; 0
+;; 0
+;; 0
+;; 0
+;; -1
+;; 0
+;; 0
+;; 0
+;; 0
+;; 1
+;; 0
