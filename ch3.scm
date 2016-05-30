@@ -1463,6 +1463,7 @@
 ;; (define (cons-stream a b)
 ;;   (cons a (delay b)))
 ;; (define (stream-car stream)
+;;   (display stream) (newline)
 ;;   (car stream))
 ;; (define (stream-cdr stream)
 ;;   (force (cdr stream)))
@@ -1730,7 +1731,7 @@
   (if (eq? (stream-car s2) 0)
       (error "Divisor has a constant term of zero -- DIV-SERIES" (list s1 s2))
       (mul-series s1 (scale-stream (invert-unit-series s2) (stream-car s2)))))
-      
+
 (define tangent-series (div-series sine-series cosine-series))
 
 ;;1 ]=> (display-stream tangent-series)
@@ -1752,7 +1753,7 @@
 ;;; Represent state as a "timeless" stream of values rather than as a set of variables to be updated.
 (define (average a b)
   (/ (+ a b) 2))
-  
+
 (define (sqrt-improve guess x)
   (average guess (/ x guess)))
 
@@ -1760,50 +1761,50 @@
   (define guesses
     (cons-stream 1.0
                  (stream-map (lambda (guess)
-                 			   (sqrt-improve guess x))
-                 			 guesses)))
+                               (sqrt-improve guess x))
+                             guesses)))
   guesses)
-  
+
 (define (pi-summands n)
   (cons-stream (/ 1.0 n)
-  			   (stream-map - (pi-summands (+ n 2)))))
-  			   
+               (stream-map - (pi-summands (+ n 2)))))
+
 (define pi-stream
   (scale-stream (partial-sums (pi-summands 1)) 4))
-  
+
 (define (euler-transform s)
   (let ((s0 (stream-ref s 0))
-  	    (s1 (stream-ref s 1))
-  	    (s2 (stream-ref s 2)))
+        (s1 (stream-ref s 1))
+        (s2 (stream-ref s 2)))
     (cons-stream (- s2 (/ (square (- s2 s1))
-    				      (+ s0 (* -2 s1) s2)))
-    		     (euler-transform (stream-cdr s)))))
-    		     
-    		     
+                          (+ s0 (* -2 s1) s2)))
+                 (euler-transform (stream-cdr s)))))
+
+
 (define (make-tableau transform s)
   (cons-stream s
                (make-tableau transform
                              (transform s))))
-                             
+
 (define (accelerated-sequence transform s)
   (stream-map stream-car
-  			  (make-tableau transform s)))
-  			  
-  			  
+              (make-tableau transform s)))
+
+
 ;; Exercise 3.63 -- In Notebook.
 ;;(define (sqrt-stream x)
 ;;  (cons-stream 1.0
 ;;  			   (stream-map (lambda (guess) (sqrt-improve guess x)) (sqrt-stream x))))
 
-  			   
+
 ;; Exercise 3.64
 (define (stream-limit s d)
   (let ((s1 (stream-car s))
-  		(s2 (stream-car (stream-cdr s))))
+        (s2 (stream-car (stream-cdr s))))
     (if (<= (abs (- s1 s2)) d)
     	s2
     	(stream-limit (stream-cdr s) d))))
-    	
+
 ;;1 ]=> (stream-limit (accelerated-sequence euler-transform pi-stream) 0.00001)
 ;;
 ;;;Value: 3.1415927140337785
@@ -1819,8 +1820,8 @@
 ;; Exercise 3.65
 (define (ln-summands n)
   (cons-stream (/ 1.0 n)
-    (stream-map - (ln-summands (+ n 1)))))
-    
+               (stream-map - (ln-summands (+ n 1)))))
+
 (define ln-stream
   (partial-sums (ln-summands 1)))
 
@@ -2015,7 +2016,7 @@
 ;; (1 91)
 ;; (7 19)
 ;; (11 13)
-                                
+
 
 
 ;;; Exercise 3.71 - Ramanujan Numbers
@@ -2168,3 +2169,208 @@
 ;; 0
 ;; 1
 ;; 0
+
+
+(define (integral delayed-integrand initial-value dt)
+  (define int
+    (cons-stream initial-value
+                 (let ((integrand (force delayed-integrand)))
+                   (add-streams (scale-stream integrand dt)
+                                int))))
+  int)
+
+(define (solve f y0 dt)
+  (define y (integral (delay dy) y0 dt))
+  (define dy (stream-map f y))
+  y)
+
+;;1 ]=> (stream-ref (solve (lambda (y) y) 1 0.001) 1000)
+;;
+;;;Value: 2.716923932235896
+
+;; Exercise 3.77 -- Need to force the delayed integrand in a let binding, then delay the argument
+;; passed in the recursive call.
+;; (define (integral delayed-integrand initial-value dt)
+;;   (cons-stream initial-value
+;;                (let ((integrand (force delayed-integrand)))  
+;;                  (if (stream-null? integrand)
+;;                      the-empty-stream
+;;                      (integral (delay (stream-cdr integrand))
+;;                                (+ (* dt (stream-car integrand))
+;;                                   initial-value)
+;;                                dt)))))
+
+;; 1 ]=> (stream-ref (solve (lambda (y) y) 1 0.001) 1000)
+
+;; ;Value: 2.716923932235896
+
+;;; Exercise 3.78 -- solving a second order ODE using signal processing
+(define (solve-2nd a b y0 dy0 dt)
+  (define y  (integral (delay dy) y0 dt))
+  (define dy (integral (delay ddy) dy0 dt))
+  (define ddy (add-streams (scale-stream dy a)
+                           (scale-stream y b)))
+  y)
+
+;; 1 ]=> (stream-ref (solve-2nd 1 1 1 1 0.001) 1000)
+;; (1 . #[promise 39])
+;; (1 . #[promise 40])
+;; (2 . #[promise 41])
+;;Value: 3.793448578735687
+
+;;; Exercise 3.79 - Generalization of 3.78 of d^2y/dt^2 = f(dy/dy, y)
+(define (solve-2nd f y0 dy0 dt)
+  (define y (integral (delay dy) y0 dt))
+  (define dy (integral (delay ddy) dy0 dt))
+  (define ddy (stream-map f dy y))
+  y)
+
+;; 1 ]=> (stream-ref (solve-2nd (lambda (dy y) (+ (* 1 dy) (* 1 y))) 1 1 .001) 1000)
+
+;; ;Value: 3.793448578735687
+
+;;; Exercise 3.80 - A Series RLC circuit
+(define (RLC R L C dt)
+  (lambda (vc0 il0)
+    (define vc (integral (delay dvc) vc0 dt))
+    (define il (integral (delay dil) il0 dt))
+    (define dvc (scale-stream il (- (/ 1 C))))
+    (define dil (add-streams
+                 (scale-stream vc (/ 1 L))
+                 (scale-stream il (/ (- R) L))))
+    (cons vc il)))
+
+(define ex3.80-circuit (RLC 1 1 0.2 0.1))
+
+;;; damping factor : 
+;; 1 ]=> (* (/ 1 2.0) (sqrt (/ 0.2 1)))
+;; ;Value: .22360679774997896
+
+;;; This example is an underdamped system so the current should burst up, then swing below zero perhaps a few times,
+;;; before trending towards 0. I won't paste it all here, but the solution appears correct with a quick double check.
+
+;;; "Including dealys in procedure calls wreaks havoc with our ability to design programs that depend on the order
+;;;  of events, such as programs that use assignment, mutate data, or perform input or output."
+
+;;; Section 3.5.5 - Reimplementing monte carlo from a stream-processing point of view.
+;;; Key Modularity Concern - Hide the internal state of a RNG from programs that use RNs.
+
+;; (define random-numbers
+;;   (cons-stream random-init
+;;                (stream-map rand-update random-numbers)))
+
+;; (define (map-successive-pairs f s)
+;;   (cons-stream
+;;    (f (stream-car s) (stream-car (stream-cdr s)))
+;;    (map-successive-pairs f (stream-cdr (stream-cdr s)))))
+
+;; (define cesaro-stream
+;;   (map-successive-pairs (lambda (r1 r2) (= (gcd r1 r2) 1))
+;;                         random-numbers))
+
+(define (monte-carlo experiment-stream passed failed)
+  (define (next passed failed)
+    (cons-stream
+     (/ passed (+ passed failed))
+     (monte-carlo
+      (stream-cdr experiment-stream) passed failed)))
+  (if (stream-car experiment-stream)
+      (next (+ passed 1) failed)
+      (next passed (+ failed 1))))
+
+;; (define pi
+;;   (stream-map (lambda (p) (sqrt (/ 6 p)))
+;;               (monte-carlo cesaro-stream 0 0)))
+
+
+;;; Exercise 3.81 - Re-implement Exercise 3.6 from a stream processing POV.
+;;; Exercise 3.6 with rand-update redifined to a predictable update value
+(define (rand-update x)
+  (+ x 2))
+(define rand
+  (let ((x 0))
+    (lambda (action)
+      (define worker
+	(lambda init
+	  (if (null? init)
+	      (begin
+		(set! x (rand-update x))
+		x)
+	      (begin
+		(set! x (car init))))))
+      (cond ((eq? action 'generate)
+	     (worker))
+	    ((eq? action 'reset)
+	     (lambda (i)
+	       (worker i)))
+	    (else
+	     (error "unknown method chosen -- RAND" action))))))
+
+(define cmd-stream (list-to-lazy (list '(reset 1) 'generate 'generate '(reset 2) 'generate 'generate)))
+
+(define (rand-gen cmd-stream num)
+  (let ((item (stream-car cmd-stream)))
+    (cond ((and (pair? item) (eq? (car item) 'reset))
+           (cons-stream (cadr item)
+                        (rand-gen (stream-cdr cmd-stream) (cadr item))))
+          ((eq? item 'generate)
+           (let ((n (rand-update num)))
+             (cons-stream
+              n
+              (rand-gen (stream-cdr cmd-stream) n))))
+          (else
+           (error "unknown command in stream -- RAND-GEN" item)))))
+
+(define rand
+  (rand-gen cmd-stream 0))
+
+;; 1 ]=> (display-stream rand)
+
+;; 1
+;; 3
+;; 5
+;; 2
+;; 4
+;; 6
+
+;;; Exercise 3.82 - Redo Exercise 3.5 in terms of streams
+;;; Exercise - 3.5
+;;; Tweaked the random-in-range so that a random decimal is given. This seems to produce much better results.
+(define (random-in-range low high)
+  (if (= low high)
+      0
+      (let ((range (- high low)))
+        (+ low (+ (random range) (random 1.0))))))
+
+(define (estimate-integral P x1 y1 x2 y2 trials)
+  (exact->inexact (* (region-area x1 y1 x2 y2)
+		     (monte-carlo trials
+				  (lambda ()
+				    (region-test P x1 y1 x2 y2))))))
+(define (region-area x1 y1 x2 y2)
+  (* (- x2 x1) (- y2 y1)))
+
+(define (region-test P x1 y1 x2 y2)
+  (let ((x (random-in-range x1 x2))
+	(y (random-in-range y1 y2)))
+    (P x y)))
+
+(define (in-unit-circle? x y)
+  (<= (+ (expt x 2.0) (expt y 2.0)) 1.0))
+
+(define (build-integration-experiment P x1 y1 x2 y2)
+  (cons-stream
+   (region-test P x1 y1 x2 y2)
+   (build-integration-experiment P x1 y1 x2 y2)))
+
+(define (estimate-integral P x1 y1 x2 y2)
+  (stream-map (lambda (x) (exact->inexact (* (region-area x1 y1 x2 y2) x)))
+              (monte-carlo (build-integration-experiment P x1 y1 x2 y2) 0 0)))
+
+;; 1 ]=> (stream-ref (estimate-integral in-unit-circle? -1 -1 1 1) 100000)
+
+;; ;Value: 3.147168528314717
+
+;; 1 ]=> (stream-ref (estimate-integral in-unit-circle? -1 -1 1 1) 1000000)
+
+;; ;Value: 3.141912858087142
