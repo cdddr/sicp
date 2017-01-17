@@ -1,4 +1,4 @@
-;;; -*- geiser-scheme-implementation: 'mit -*-
+;;;  -*- geiser-scheme-implementation: mit -*-
 (define (self-evaluating? exp)
   (cond ((number? exp) true)
         ((string? exp) true)
@@ -75,12 +75,14 @@
         ((definition? exp) (eval-definition exp env))
         ((if? exp) (eval-f exp env))
         ((lambda? exp)
-         (make-procedure (lambda-paramters exp)
+         (make-procedure (lambda-parameters exp)
                          (lambda-body exp)
                          env))
         ((begin? exp)
          (eval-sequence (begin-actions exp) env))
         ((cond? exp) (eval (cond->if exp) env))
+        ((let? exp) (eval (let->combination exp) env))
+        ((let*? exp) (eval (let*->nested-lets exp) env))
         ((application? exp)
          (apply (eval (operator exp) env)
                 (list-of-values (operands exp) env)))
@@ -185,6 +187,8 @@
 (define (cond-clauses exp) (cdr exp))
 (define (cond-else-clause? clause)
   (eq? (cond-predicate clause) 'else))
+(define (cond-=>? clause)
+  (eq? (cadr clause) '=>))
 (define (cond-predicate clause) (car clause))
 (define (cond-actions clause) (cdr clause))
 (define (cond->if exp)
@@ -194,13 +198,38 @@
       'false
       (let ((first (car clauses))
             (rest (cdr clauses)))
-        (if (cond-else-clause? first)
-            (if (null? rest)
-                (sequence->exp (cond-actions first))
-                (error "ELSE clause isn't last -- COND->IF"
-                       clauses))
-            (make-if (cond-predicate first)
-                     (sequence->exp (cond-actions first))
-                     (expand-clauses rest))))))
+        (cond ((cond-else-clause? first)
+               (if (null? rest)
+                   (sequence->exp (cond-actions first))
+                   (error "ELSE clause isn't last -- COND->IF"
+                          clauses)))
+              ((cond-=>? first)
+               (make-if (cond-predicate first)
+                        (list (caddr first) (cond-predicate first))
+                        (expand-clauses rest)))
+              (else
+               (make-if (cond-predicate first)
+                        (sequence->exp (cond-actions first))
+                        (expand-clauses rest)))))))
 
+;;; let
+(define (let? exp) (tagged-list? exp 'let))
+(define (let-body exp) (cddr exp))
+(define (let-bindings exp) (cadr exp))
+(define (let->combination exp)
+  (append (list (make-lambda (map car (let-bindings exp)) (let-body exp)))
+          (map cadr (let-bindings exp))))
 
+;;; let*
+(define (make-let bindings body)
+  (list 'let bindings body))
+(define (let*? exp) (tagged-list exp 'let*))
+(define (let*->nested-lets exp)
+  (let ((bindings (let-bindings exp)))
+    (if (null? bindings)
+        (sequence->exp (let-body exp))
+        (let ((first-bindings (car  bindings))
+              (rest-bindings (cdr bindings)))
+          (make-let (list first-bindings)
+                    (let*->nested-lets
+                     (list 'let* rest-bindings (sequence->exp (let-body exp)))))))))
