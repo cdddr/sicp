@@ -1,0 +1,40 @@
+;;;  -*- geiser-scheme-implementation: mit -*-
+;;; Iteration constructs.
+;;; For loop
+;;;   (for ((i 0) (<= i n) (+ i 1))
+;;;     function body)
+;;; Arguments :
+;;;   ((<iteration variable> <initial value>) <test if the loop should continue> <function run after each iteration>) <for loop body>
+(define (for-loop? exp)
+  (tagged-list? exp 'for))
+(define (for-loop-initial exp)
+  (caadr exp))
+(define (for-loop-init-var exp)
+  (car (for-loop-initial exp)))
+(define (for-loop-init-val exp)
+  (cadr (for-loop-initial exp)))
+(define (for-loop-predicate exp)
+  (cadadr exp))
+(define (for-loop-step exp)
+  (car (cddadr exp)))
+(define (for-loop-body exp)
+  (sequence->exp (cddr exp)))
+(define (for->recursion exp)
+  (list 'let (list (for-loop-initial exp)
+                   (list 'f (make-lambda (list 'i) (list (for-loop-body exp)))))
+        (list 'define (list 'iter-loop (for-loop-init-var exp) 'v)
+              (list 'if (for-loop-predicate exp)
+                    (list 'iter-loop (for-loop-step exp) (list 'f (for-loop-init-var exp)))
+                    'v))
+        (list 'iter-loop (for-loop-init-var exp) #f)))
+
+
+;; 1 (user) => (for->recursion '(for ((i 0) (< i 10) (+ i 1))
+;;                           (display i) (newline)))
+;; (let ((i 0)
+;;       (f (lambda (i) (begin (display i) (newline)))))
+;;   (define (iter-loop i v)
+;;     (if (< i 10)
+;;         (iter-loop (+ i 1) (f i))
+;;         v))
+;;   (iter-loop i #f))
