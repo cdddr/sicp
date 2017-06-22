@@ -1,3 +1,5 @@
+;;; -*- geiser-scheme-implementation: mit -*-
+(load "ch4.scm")
 (define (lookup-variable-value var env)
   (define (env-loop env)
     (define (scan vars vals)
